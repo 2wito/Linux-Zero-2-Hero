@@ -1,0 +1,319 @@
+# Finding Files and Commands
+
+<Callout type="info" title="What you'll learn">
+- Search for files with `find`: by **name**, **type**, **size** and **time**.
+- Do something with everything found, using `-exec` and `-delete`.
+- Fast searching with `locate`.
+- Find out where a command lives: `which`, `type` and `whereis`.
+- Pass a list of files to another command with `xargs`.
+</Callout>
+
+## Where did I put my keys?
+
+There are two ways to look for something at home. You can **go room by room** and check every drawer: slow, but always up to date. Or you can **look at an inventory list** you wrote once: very fast, but only if the list is current.
+
+`find` is the first way. `locate` is the second. We'll start with `find`, because it's the more powerful one.
+
+We'll practice on a small project directory:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project
+  project
+  project/docs
+  project/docs/README.md
+  project/docs/todo.txt
+  project/old
+  project/old/backup.tar
+  project/old/debug.log
+  project/old/app.log
+  project/old/notes.txt
+  project/src
+  project/src/utils.py
+  project/src/main.py
+`}</TerminalWindow>
+
+With no conditions, `find` simply lists everything inside the directory, all the way down. Every `find` command is built like this: **where to search**, followed by **conditions**.
+
+## By name: `-name`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.py"
+  project/src/utils.py
+  project/src/main.py
+  $ find project -name "readme*"
+  $ find project -iname "readme*"
+  project/docs/README.md
+`}</TerminalWindow>
+
+- `-name "*.py"`: every file ending in `.py`. The same `*` we met in chapter 6.
+- `-name` tells uppercase from lowercase, so `readme*` didn't find `README.md`.
+- `-iname` (insensitive) doesn't.
+
+<Callout type="warning" title="Quotes around the pattern">
+Write `-name "*.py"` with quotes. Without them, if there are `.py` files in the current directory, the shell replaces `*.py` with their names before `find` even runs, and the search goes wrong.
+</Callout>
+
+## By type: `-type`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -type d
+  project
+  project/docs
+  project/old
+  project/src
+  $ find project -type f -name "*.txt"
+  project/docs/todo.txt
+  project/old/notes.txt
+`}</TerminalWindow>
+
+`-type d` = directories, `-type f` = regular files. When you write several conditions in a row, `find` looks for what matches **all** of them.
+
+## By size: `-size`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -size +1M
+  project/old/backup.tar
+`}</TerminalWindow>
+
+`+1M` = more than a megabyte. `-1M` = less. Units: `k` (kilo), `M` (mega) and `G` (giga). This is very useful when the disk is filling up and you want to know what's taking the space (we'll come back to it in chapter 21).
+
+## By time: `-mtime`
+
+`-mtime` checks when the file was last changed, in **days**:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -mtime +30
+  project/old/backup.tar
+  project/old/debug.log
+  project/old/app.log
+  project/old/notes.txt
+  $ find project -mtime -7 -type f
+  project/docs/README.md
+  project/docs/todo.txt
+  project/src/utils.py
+  project/src/main.py
+`}</TerminalWindow>
+
+- `+30`: **more** than 30 days ago. Old files.
+- `-7`: in the **last** 7 days. "What did I work on this week?"
+
+## Searching the whole system
+
+You can search from the top of the directory tree, or from any other directory. But a regular user can't enter every directory, and the errors flood the screen:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ find /etc -name os-release
+  find: ‘/etc/polkit-1/rules.d’: Permission denied
+  /etc/os-release
+  find: ‘/etc/credstore.encrypted’: Permission denied
+  find: ‘/etc/credstore’: Permission denied
+  find: ‘/etc/ssl/private’: Permission denied
+  $ find /etc -name "os-release" 2>/dev/null
+  /etc/os-release
+`}</TerminalWindow>
+
+Remember `2>/dev/null` from chapter 12? It swallows the errors, and only the answer is left.
+
+<Callout type="tip" title="Searching / takes time">
+`find / -name ...` goes over the **whole** disk. That can take minutes, especially on WSL, where the Windows drives (`/mnt/c`) are part of the tree too. It's better to start from a narrower directory, like `/etc` or `~`.
+</Callout>
+
+## Doing something with what's found
+
+### `-exec`
+
+`-exec` runs a command on **every** file found. `{}` marks where the file name goes, and `\;` marks the end of the command:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -size +1M -exec ls -lh {} \\;
+  -rw-r--r-- 1 dana dana 2.9M Oct  2 21:58 project/old/backup.tar
+`}</TerminalWindow>
+
+Here we ran `ls -lh` (`-h` = human-readable sizes) on each large file.
+
+### `-delete`
+
+<Callout type="warning" title="-delete deletes without asking">
+`find ... -delete` permanently deletes everything found. **Always** run the same command **without** `-delete` first, and check that the list is exactly what you want to delete. And `-delete` must come **last**: if you put it before the conditions, it deletes everything.
+</Callout>
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.log"
+  project/old/debug.log
+  project/old/app.log
+  $ find project -name "*.log" -delete
+  $ find project -name "*.log"
+`}</TerminalWindow>
+
+First we checked the list, then we deleted, and finally we confirmed nothing was left.
+
+## `locate`: the inventory list
+
+`locate` doesn't scan the disk. It searches a database of every file name, which is updated once a day. That makes it almost instant, but it won't find a file created a moment ago. On Ubuntu it isn't installed by default:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ locate os-release
+  Command 'locate' not found, but can be installed with:
+  sudo apt install plocate
+`}</TerminalWindow>
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+</DistroTabs>
+
+`updatedb` updates the database manually. After installing you need to run it once, and from then on it happens automatically.
+
+## Where's the command? `which`, `type` and `whereis`
+
+Every command (except the builtins) is a file somewhere on disk. To find out where:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ which ls
+  /usr/bin/ls
+  $ which python3 nano
+  /usr/bin/python3
+  /usr/bin/nano
+  $ type cd ls
+  cd is a shell builtin
+  ls is /usr/bin/ls
+  $ whereis ls
+  ls: /usr/bin/ls /usr/share/man/man1/ls.1.gz
+  $ which nosuchcmd
+`}</TerminalWindow>
+
+- `which` returns the path of the command that runs when you type its name. When there isn't one, it returns nothing.
+- `type` (from chapter 8) also knows about builtins, like `cd`, that have no file.
+- `whereis` also finds the man page.
+
+How does `which` know where to look? It checks the directories in `PATH`, and we'll talk about that in the next chapter.
+
+## `xargs`: from a list to a command
+
+Many commands don't read file names from stdin. They want them as **arguments**. `xargs` is the translator: it takes lines from stdin and turns them into a command's arguments:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.py" | xargs wc -l
+   1 project/src/utils.py
+   1 project/src/main.py
+   2 total
+  $ find project -name "*.txt" | xargs grep -l todo
+  project/docs/todo.txt
+  $ echo "one two three" | xargs -n 1
+  one
+  two
+  three
+`}</TerminalWindow>
+
+- In the first example, `xargs` ran `wc -l project/src/utils.py project/src/main.py`.
+- In the second, `grep -l` (list) returns only the **names** of the files that contain the word.
+- `-n 1` passes one argument at a time.
+
+### The trap: spaces in names
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ touch "my notes.txt"
+  $ find . -maxdepth 1 -name "*.txt" | xargs ls -l
+  ls: cannot access './my': No such file or directory
+  ls: cannot access 'notes.txt': No such file or directory
+  $ find . -maxdepth 1 -name "*.txt" -print0 | xargs -0 ls -l
+  -rw-r--r-- 1 dana dana 0 Nov 11 20:58 './my notes.txt'
+`}</TerminalWindow>
+
+`xargs` splits on spaces, so `my notes.txt` turned into two "files". The fix: `-print0` in `find` and `-0` in `xargs` separate by a special character that can't appear in a file name. (`-maxdepth 1` limits the search to the current directory only.)
+
+<Callout type="warning" title="find | xargs rm">
+`find ... | xargs rm` is a common combination, and a dangerous one when names have spaces: `rm` may delete a different file that happens to be named like half the name. If you're deleting, prefer `find ... -delete`, or at least `-print0 | xargs -0 rm`, and always after checking without `rm`.
+</Callout>
+
+<Exercise title="File detective">
+In your home directory:
+
+1. Find all the `.txt` files (with no difference between uppercase and lowercase).
+2. Find all the directories called `projects`.
+3. Find files changed in the last day.
+4. In `/usr/share`, find files larger than 10M, without error messages.
+
+<Solution>
+
+```bash
+find ~ -iname "*.txt"
+find ~ -type d -name projects
+find ~ -mtime -1 -type f
+find /usr/share -size +10M 2>/dev/null
+```
+
+In step 3, `-1` means "less than a day". You may also see hidden files that programs changed there, like `.bash_history`.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`find`", body: "Where + conditions: `-name`, `-iname`, `-type`, `-size`, `-mtime`." },
+    { title: "`-exec` / `-delete`", body: "An action on everything found. Always check the list before deleting." },
+    { title: "`locate`", body: "Fast search in a database that's updated with `updatedb`." },
+    { title: "`which` / `xargs`", body: "Where a command lives. And how to turn a list into arguments." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "How do you find all the **directories** called `logs` under `/var`?",
+      options: [
+        { text: "`find /var -type f -name logs`", why: "`-type f` looks for regular files, not directories." },
+        { text: "`find /var -type d -name logs`", why: "`d` = directory." },
+        { text: "`locate -type d logs`", why: "`locate` has no `-type`. It only searches by name." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You created a file a minute ago, and `locate` doesn't find it. Why?",
+      options: [
+        { text: "`locate`'s database updates once a day. `sudo updatedb` or `find` will solve it", why: "`locate` searches an inventory list, not the disk itself." },
+        { text: "`locate` only finds system files", why: "It finds any file that's in the database." },
+        { text: "The file was deleted", why: "Not necessarily. The database just doesn't know about it yet." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "What's the safe way to delete files with `find`?",
+      options: [
+        { text: "Run `-delete` right away, because it's fast", why: "Without checking first, one wrong condition deletes files you didn't mean to." },
+        { text: "`sudo find / -delete`", why: "That's one of the most destructive commands you can run." },
+        { text: "Run it first without `-delete`, check the list, then add `-delete` at the end", why: "That way you know exactly what's about to be deleted." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

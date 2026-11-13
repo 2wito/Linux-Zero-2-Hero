@@ -7,6 +7,10 @@ export const AUTHOR = {
   en: { name: "Itay Twito", bio: "B.Sc. Computer Science student at HIT (Holon Institute of Technology)" },
 };
 
+/** The public source repository; readers can also send feedback as GitHub issues. */
+export const REPO_URL = "https://github.com/2wito/Linux-Zero-2-Hero";
+export const NEW_ISSUE_URL = `${REPO_URL}/issues/new`;
+
 // TODO: the owner will send the public feedback address. Until then the feedback button stays hidden.
 export const FEEDBACK_EMAIL_PLACEHOLDER = "feedback@example.com";
 export const FEEDBACK_EMAIL: string = FEEDBACK_EMAIL_PLACEHOLDER;

@@ -1,0 +1,224 @@
+# Getting Linux
+
+<Callout type="info" title="What you'll learn">
+- Five ways to get to a Linux terminal, and which one suits you.
+- Installing **WSL** on Windows, step by step.
+- Your options on a Mac, in a virtual machine and in the cloud.
+- How to open a terminal and make sure everything works.
+</Callout>
+
+## You don't have to delete anything
+
+Lots of people think that to learn Linux you have to wipe Windows. Not at all.
+
+Think of learning to drive: you don't buy a car on day one. You can rent one, practice in a parking lot, or drive your parents' car. Linux also has several "practice lots", and all of them are safe for your computer.
+
+## Five ways, in short
+
+| Way | What it is | Good for |
+| --- | --- | --- |
+| **WSL** | Real Linux running inside Windows | Windows users. **Our recommendation.** |
+| **Virtual machine** | A "computer inside a computer", with full Linux including a desktop | Anyone who also wants to see the graphical interface |
+| **Cloud server** | A remote Linux computer you connect to | Anyone who wants to practice running a real server |
+| **Dual boot** | Linux installed next to Windows; you choose at startup | Advanced users who want to switch to Linux day to day |
+| **The macOS terminal** | Not Linux, but very similar | Mac users, as a bridge to get started |
+
+<Callout type="tip" title="The short recommendation">
+On **Windows**? Install WSL (explained right below). On a **Mac**? Start with the built-in terminal. Already on **Linux**? Just open a terminal and skip to chapter 4.
+</Callout>
+
+## WSL: Linux inside Windows
+
+**WSL** (Windows Subsystem for Linux) is an official Microsoft component. It runs real Linux, with the real kernel, straight from Windows. No rebooting and no partitioning the disk.
+
+You need Windows 11, or Windows 10 version 2004 or later.
+
+<Steps>
+
+### Open PowerShell as administrator
+
+Click **Start**, type `PowerShell`, **right-click** it and choose **Run as administrator**.
+
+### Run the install command
+
+Type the command and press <Kbd>Enter</Kbd>:
+
+<TerminalWindow title="Windows PowerShell" prompt=">">{`
+  > wsl --install
+`}</TerminalWindow>
+
+The command installs WSL and **Ubuntu**, the distro installed by default. It takes a few minutes.
+
+### Restart the computer
+
+At the end of the install you'll be asked to restart. After the restart, an Ubuntu window opens by itself and finishes the installation.
+
+### Choose a username and password
+
+Ubuntu asks for a **username** and a password. The name doesn't have to match your Windows name. Pick something short in lowercase English letters, for example `dana`.
+
+<Callout type="warning" title="The password doesn't show as you type">
+When you type the password, **nothing appears** on the screen: no asterisks, no dots. That's completely normal; it's a security measure. Type it and press <Kbd>Enter</Kbd>. **Remember the password**: you'll need it every time you install software.
+</Callout>
+
+### Check that everything works
+
+In a regular PowerShell window, run:
+
+<TerminalWindow title="Windows PowerShell" prompt=">">{`
+  > wsl -l -v
+    NAME      STATE           VERSION
+  * Ubuntu    Running         2
+`}</TerminalWindow>
+
+- `wsl` is the WSL management program.
+- `-l` (short for list) shows the installed distros.
+- `-v` (short for verbose) adds the state and version.
+
+The asterisk marks the distro that opens by default, and `2` means you're on WSL 2, the recommended version.
+
+</Steps>
+
+<Callout type="info" title="Want a different distro?">
+`wsl --list --online` shows every distro you can install, and `wsl --install -d Debian` (for example) installs a specific one. For this guide, Ubuntu is perfect.
+</Callout>
+
+## Mac: the built-in terminal
+
+macOS is **not** Linux, but it's a close relative: both are built on the same ideas from Unix systems. That's why most commands in the first chapters (`ls`, `cd`, `mkdir` and more) work on a Mac almost the same way.
+
+The differences start in the advanced chapters, for example installing software and managing services. When you get there, it's worth running real Linux in a virtual machine. The Mac has convenient tools for that, like **UTM** and **Multipass**.
+
+## Virtual machine
+
+A **virtual machine** is a simulated computer that runs as a program inside your computer. What happens inside it stays inside it, so you can experiment without worry.
+
+Roughly:
+
+1. Install a free virtualization program, for example **VirtualBox**.
+2. Download an Ubuntu Desktop **ISO** file from the Ubuntu website (a file that holds the installation disk).
+3. Create a new machine with at least **4GB of memory**, **2 processors** and a **25GB disk**.
+4. Boot the machine from the ISO file and follow the install wizard.
+
+## Cloud server and dual boot
+
+**Cloud server**: cloud providers rent out a small Linux computer for a few dollars a month, and some have a free tier. It has no screen: you connect to it from the terminal with `ssh`, which we'll learn in chapter 16. It's the closest thing to real work with servers.
+
+**Dual boot**: you install Linux next to Windows on the same computer. That gives the best performance, but the install changes how the disk is partitioned.
+
+<Callout type="danger" title="Before dual boot: back up">
+A dual-boot install touches the disk's partitions. A small mistake can delete files. **Back up all important data before you start**, and if you're just learning, prefer WSL or a virtual machine.
+</Callout>
+
+## Open a terminal
+
+Choose your system (your choice is remembered across the whole site):
+
+<DistroTabs>
+<Distro id="wsl">
+
+Click **Start**, type `Ubuntu` and click the app. You can also type `wsl` inside PowerShell.
+
+</Distro>
+<Distro id="macos">
+
+Press <Kbd keys="Cmd+Space" />, type `Terminal` and press <Kbd>Enter</Kbd>. On a Mac the prompt ends with `%` instead of `$`, and that's fine.
+
+</Distro>
+<Distro id="ubuntu">
+
+Press <Kbd keys="Ctrl+Alt+T" />, or search for **Terminal** in the applications menu.
+
+</Distro>
+</DistroTabs>
+
+Now type your first command:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ whoami
+  dana
+  $ uname
+  Linux
+`}</TerminalWindow>
+
+- `whoami` ("who am I") shows your username.
+- `uname` shows the operating system's name. On a Mac you'll get `Darwin`, the name of the macOS kernel.
+
+<Checklist
+  id="ch03-ready"
+  title="Ready for the next chapter?"
+  items={[
+    "You chose a way to get Linux (WSL, Mac, virtual machine or server)",
+    "You opened a terminal",
+    "You ran `whoami` and saw your username",
+    "You remember the password you chose",
+  ]}
+/>
+
+<Exercise title="Meet your new system">
+In the terminal you opened, run the three commands `whoami`, `uname` and `cat /etc/os-release` (from the previous chapter). What's your username, and which distro and version are you on?
+
+<Solution>
+The answers depend on your computer. On WSL with the standard install, you'll see roughly this:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ whoami
+  dana
+  $ uname
+  Linux
+  $ cat /etc/os-release
+  PRETTY_NAME="Ubuntu 24.04.3 LTS"
+  NAME="Ubuntu"
+  VERSION_ID="24.04"
+  ...
+`}</TerminalWindow>
+
+The important part is `PRETTY_NAME`: it tells you the distro's name and version. On a Mac this file doesn't exist and you'll get an error message. That's expected.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "WSL", body: "Real Linux inside Windows. Install it with `wsl --install` in PowerShell as administrator." },
+    { title: "Mac", body: "Not Linux, but the terminal is very similar. Great for the first chapters." },
+    { title: "Virtual machine", body: "A simulated computer with full Linux, without touching your real system." },
+    { title: "The password is invisible", body: "When you type a password in the terminal you see nothing. That's normal." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You have a Windows computer and want to start learning today, with no risk. What fits best?",
+      options: [
+        { text: "Dual boot", why: "Dual boot changes the disk's partitions. It's not the first step for someone who's just learning." },
+        { text: "WSL", why: "One command, a restart, and you have real Linux inside Windows." },
+        { text: "Delete Windows and install Linux", why: "Not needed at all. You can learn Linux without giving up Windows." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You typed a password in the terminal and nothing appeared on the screen. What happened?",
+      options: [
+        { text: "The keyboard isn't connected", why: "The keyboard is fine. The terminal just doesn't show the password." },
+        { text: "You need to restart the installation", why: "No need. Keep typing and press Enter." },
+        { text: "That's normal: the terminal hides passwords completely, without asterisks", why: "Exactly. It's a security measure, and the characters are being received." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "What does the `uname` command show on a Mac?",
+      options: [
+        { text: "Darwin", why: "Darwin is the macOS kernel. It's similar to Linux, but it isn't Linux." },
+        { text: "Linux", why: "macOS isn't Linux, so the answer is different." },
+        { text: "Windows", why: "No. `uname` exists on Unix-like systems such as Linux and macOS." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

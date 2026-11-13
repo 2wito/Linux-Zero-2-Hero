@@ -1,0 +1,302 @@
+# Networking Basics
+
+<Callout type="info" title="What you'll learn">
+- What an **IP address**, **DNS** and a **port** are.
+- See your addresses with `ip a`.
+- Check a connection with `ping`.
+- Download and check websites with `curl` and `wget`.
+- See which ports are open with `ss`.
+- Connect to a remote computer with `ssh`, and copy files with `scp`.
+</Callout>
+
+## Mail, addresses and apartments
+
+Think of a letter. For it to arrive, you need:
+
+- The building's **address**. On a network that's an **IP address**, for example `172.105.4.254`.
+- A **phone book** that translates a name into an address. Because "kernel.org" is easier to remember than numbers. On a network that's **DNS**.
+- An **apartment number** inside the building. Many services run on one computer, and each has its own **port**: websites on `443` (or `80`), SSH on `22`.
+
+Each command in this chapter checks a different link in that chain.
+
+## My addresses: `ip a`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ip -br a
+  lo               UNKNOWN        127.0.0.1/8 10.255.255.254/32 ::1/128
+  eth0             UP             172.31.190.105/20 fe80::215:5dff:fe3f:2b03/64
+`}</TerminalWindow>
+
+`ip a` (address) shows the computer's **network interfaces** and their addresses. `-br` (brief) shows a short version: one line per interface. Without it you get many more details.
+
+- **`lo`** (loopback) is a virtual interface that connects the computer **to itself**. The address `127.0.0.1`, or the name `localhost`, always means "this computer".
+- **`eth0`** is the network card. `UP` says it's connected. `172.31.190.105` is its address on the local network, and `/20` describes the network's size.
+- The long addresses with colons are **IPv6**, the new generation of IP addresses.
+
+Your interface might be called `wlan0` or `wlp2s0` (wireless) or `enp3s0`. The name depends on the hardware.
+
+<Callout type="tip" title="Private vs. public addresses">
+Addresses starting with `10.`, `172.16.`–`172.31.` or `192.168.` are **private**: they exist only inside your home or office network. You go out to the internet through the router, with one public address for the whole house.
+</Callout>
+
+## Is there a connection? `ping`
+
+`ping` sends a small "hello, are you there?" and measures how long the answer takes. `-c 3` (count) stops after 3 tries. Without it, `ping` keeps going until <Kbd keys="Ctrl+C" />.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ping -c 3 kernel.org
+  PING kernel.org (172.105.4.254) 56(84) bytes of data.
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=1 ttl=44 time=162 ms
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=2 ttl=44 time=163 ms
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=3 ttl=44 time=163 ms
+
+  --- kernel.org ping statistics ---
+  3 packets transmitted, 3 received, 0% packet loss, time 2005ms
+  rtt min/avg/max/mdev = 162.432/162.842/163.176/0.308 ms
+`}</TerminalWindow>
+
+- On the first line, DNS already translated `kernel.org` to `172.105.4.254`.
+- `time=162 ms`: how long the round trip took. This server is far away, hence 162 milliseconds.
+- `0% packet loss`: every request got an answer. The connection is fine.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ping -c 1 nosuch.invalid
+  ping: nosuch.invalid: Name or service not known
+`}</TerminalWindow>
+
+`Name or service not known` is a **DNS** error: the name wasn't translated into an address. That helps diagnose a fault: if `ping` to an IP address works but to a name doesn't, the problem is in the phone book, not the connection.
+
+<Callout type="tip" title="No answer doesn't always mean no connection">
+Many servers are set up not to answer `ping`, for security reasons. If `ping` fails but the site opens in the browser, everything is fine.
+</Callout>
+
+## DNS: the phone book
+
+`getent hosts` asks the system "what's the address of this name?", exactly as any program does:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ getent hosts www.kernel.org
+  2a04:4e42:7d::311 dualstack.m.sni.global.fastly.net www.kernel.org
+`}</TerminalWindow>
+
+The name `www.kernel.org` points to an IPv6 address of Fastly, a company that serves the site from many servers around the world. More detailed DNS tools are `dig` and `nslookup` (in the `dnsutils` package on Ubuntu).
+
+Before the computer asks a DNS server, it checks a local file: `/etc/hosts`. A line like `127.0.0.1 myapp.local` there makes the name point to your own computer. That's useful in development.
+
+## Websites from the terminal: `curl` and `wget`
+
+### `curl`: talking to servers
+
+`curl` sends a request to an address and shows the answer. `-I` asks only for the **headers**, meaning "the envelope" without the letter:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -I https://kernel.org
+  HTTP/2 200
+  server: nginx
+  date: Wed, 11 Nov 2026 19:03:17 GMT
+  content-type: text/html; charset=utf-8
+  content-length: 20436
+  last-modified: Wed, 11 Nov 2026 17:54:39 GMT
+  ...
+`}</TerminalWindow>
+
+`200` is the **status code**: all good. Codes worth knowing:
+
+| Code | Meaning |
+| --- | --- |
+| `200` | Success |
+| `301` / `302` | The page moved to another address (a redirect) |
+| `404` | Page not found |
+| `500` | A server error |
+
+Without `-I`, `curl` shows the page itself. `-s` (silent) hides the progress bar:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -s https://www.kernel.org | head -4
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+          <title>The Linux Kernel Archives</title>
+  $ curl -s -o kernel.html https://www.kernel.org
+  $ ls -lh kernel.html
+  -rw-r--r-- 1 dana dana 20K Nov 11 21:03 kernel.html
+`}</TerminalWindow>
+
+`-o` (output) saves the answer to a file instead of showing it.
+
+### `wget`: downloading files
+
+`wget` specializes in downloads. It saves the file under its original name and shows progress:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ wget https://www.kernel.org/finger_banner
+  --2026-11-11 21:03:42--  https://www.kernel.org/finger_banner
+  Resolving www.kernel.org (www.kernel.org)... 146.75.53.55, 2a04:4e42:7d::311
+  Connecting to www.kernel.org (www.kernel.org)|146.75.53.55|:443... connected.
+  HTTP request sent, awaiting response... 200 OK
+  Length: 780 [text/plain]
+  Saving to: ‘finger_banner’
+
+  finger_banner       100%[===================>]     780  --.-KB/s    in 0s
+
+  2026-11-11 21:03:42 (101 MB/s) - ‘finger_banner’ saved [780/780]
+
+  $ head -3 finger_banner
+  The latest stable version of the Linux kernel is:             7.3.4
+  The latest mainline version of the Linux kernel is:           7.4-rc2
+  The latest stable 7.3 version of the Linux kernel is:         7.3.4
+`}</TerminalWindow>
+
+The output shows the whole chain from the start of the chapter: **Resolving** (DNS), **Connecting** to port `443`, **200 OK**, and saving. (This file, by the way, shows the latest version of the Linux kernel.)
+
+<Callout type="warning" title="curl | bash">
+You'll see instructions online like `curl https://... | sudo bash`. That downloads a script and runs it immediately, as root, without you seeing what's in it. If you must, download it to a file first (`curl -o install.sh ...`), read it, and only then run it. And in any case, only from official sites you trust.
+</Callout>
+
+## Ports: `ss`
+
+`ss` (socket statistics) shows which "apartments" in the building are occupied, meaning which programs are **listening** for connections. Let's start a small web server (built into Python) and look at it:
+
+<TerminalWindow title="~/site" user="dana@ubuntu">{`
+  $ python3 -m http.server 8000 > /dev/null 2>&1 &
+  [1] 590
+  $ ss -tln
+  State   Recv-Q   Send-Q      Local Address:Port     Peer Address:Port  Process
+  LISTEN  0        5                 0.0.0.0:8000          0.0.0.0:*
+  LISTEN  0        4096        127.0.0.53%lo:53            0.0.0.0:*
+  LISTEN  0        4096           127.0.0.54:53            0.0.0.0:*
+  LISTEN  0        1000       10.255.255.254:53            0.0.0.0:*
+  $ curl http://localhost:8000/index.html
+  <h1>hello</h1>
+  $ kill %1
+`}</TerminalWindow>
+
+- `-t` = TCP, `-l` = listening only, `-n` = numbers, not names.
+- `0.0.0.0:8000`: our server listens on port 8000 **on every address**, so other computers on the network can reach it too.
+- `127.0.0.53:53`: the local DNS service, which listens **only** inside the computer.
+- `curl` to `localhost:8000` got the file from the server.
+
+And what happens when nobody is listening?
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -I http://localhost:9999
+  curl: (7) Failed to connect to localhost port 9999 after 0 ms: Couldn't connect to server
+`}</TerminalWindow>
+
+`Couldn't connect` means you reached the building, but nobody's home. In chapter 22 we'll learn to close ports that shouldn't be open, with a firewall.
+
+## `ssh`: a terminal on another computer
+
+**SSH** (Secure Shell) opens a terminal on a remote computer, over an encrypted connection. That's how almost every Linux server in the world is managed: they have no screen, just `ssh`.
+
+```bash
+ssh dana@192.168.1.50
+```
+
+`dana` is the username **on the remote computer**, and after the `@` comes its address (or name). After the password you get the other computer's prompt, and every command runs there. `exit` takes you back home.
+
+The first time you connect to a server, a question like this appears:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ ssh -T git@github.com
+  The authenticity of host 'github.com (20.217.135.5)' can't be established.
+  ED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.
+  This key is not known by any other names.
+  Are you sure you want to continue connecting (yes/no/[fingerprint])? no
+  Host key verification failed.
+`}</TerminalWindow>
+
+That's the server's "ID card". After `yes`, it's saved in `~/.ssh/known_hosts`. If next time the server shows a **different** one, `ssh` raises a big alarm. (Here we answered `no`, so the connection didn't continue.)
+
+<Callout type="warning" title="The REMOTE HOST IDENTIFICATION HAS CHANGED warning">
+If `ssh` shows this warning, don't just make it go away. It can come from a server that was reinstalled, but also from someone impersonating the server. Check with whoever runs the server before you continue.
+</Callout>
+
+In chapter 22 we'll replace the password with **SSH keys**, which are safer and more convenient.
+
+## `scp`: copying files over SSH
+
+`scp` is `cp` over the network. The structure is the same: **source** then **destination**, and on the remote side you write `user@server:path`:
+
+```bash
+scp report.pdf dana@192.168.1.50:~/documents/
+scp dana@192.168.1.50:~/logs/app.log .
+scp -r website/ dana@192.168.1.50:~/
+```
+
+1. From your computer **to the server**.
+2. From the server **to you**. The `.` at the end = the current directory.
+3. `-r` copies a whole directory.
+
+<Callout type="warning" title="scp overwrites without asking">
+Like `cp`, `scp` replaces an existing file with the same name at the destination, without warning. Check the destination path, especially when copying to a server other people work on.
+</Callout>
+
+<Exercise title="Network diagnosis">
+1. What's your network card's address?
+2. Check whether there's a connection to `kernel.org`, with only 2 tries.
+3. What's the status code of `https://www.kernel.org/nosuchpage`?
+4. Download `https://www.kernel.org/finger_banner` and check the latest stable kernel version.
+
+<Solution>
+
+```bash
+ip -br a
+ping -c 2 kernel.org
+curl -I https://www.kernel.org/nosuchpage
+wget https://www.kernel.org/finger_banner
+head -1 finger_banner
+```
+
+1. On the `eth0` (or `wlan0`) line, the address before the `/`.
+2. If you see `0% packet loss`, the connection is fine.
+3. The first line will be `HTTP/2 404`: the page doesn't exist.
+4. The first line in the file. The version depends on the day you run it.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "IP, DNS, port", body: "An address, a phone book and an apartment number. `localhost` = your computer." },
+    { title: "`ip a` / `ping`", body: "What my addresses are, and whether there's a connection (and how fast)." },
+    { title: "`curl` / `wget`", body: "Check websites (`-I` for headers and the status code) and download files." },
+    { title: "`ss` / `ssh` / `scp`", body: "Who's listening on which port, a remote terminal, and encrypted file copying." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "`ping 8.8.8.8` works, but `ping google.com` gives `Name or service not known`. What's the problem?",
+      options: [
+        { text: "There's no internet connection", why: "There is: the ping to an IP address succeeded." },
+        { text: "A DNS problem: the name isn't translated into an address", why: "The connection is fine; only the \"phone book\" isn't answering." },
+        { text: "Google blocked you", why: "The error comes before any request was even sent to Google." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "What does `curl -I https://example.com` show?",
+      options: [
+        { text: "Only the response headers, including the status code", why: "`-I` asks for \"the envelope\" without the contents." },
+        { text: "The site's IP address", why: "For that there's `getent hosts` or `ping`." },
+        { text: "All of the page's HTML code", why: "That's what `curl` without `-I` does." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "How do you copy `notes.txt` to `dana`'s home directory on the server `10.0.0.5`?",
+      options: [
+        { text: "`cp notes.txt 10.0.0.5:~`", why: "`cp` doesn't know how to work over the network." },
+        { text: "`ssh notes.txt dana@10.0.0.5`", why: "`ssh` opens a terminal; it doesn't copy files." },
+        { text: "`scp notes.txt dana@10.0.0.5:~/`", why: "Source, then destination in `user@server:path` form." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

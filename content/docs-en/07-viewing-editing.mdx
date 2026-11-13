@@ -1,0 +1,276 @@
+# Viewing and Editing Files
+
+<Callout type="info" title="What you'll learn">
+- Show a file with `cat`, and page through a long file with `less`.
+- See only the beginning or the end with `head` and `tail`.
+- Follow a file that updates in real time with `tail -f`.
+- Edit files with **nano**, the friendly editor.
+- Survive in **vim**, and most important of all: know how to get out.
+</Callout>
+
+## Read before you write
+
+A lot of work in Linux is **reading** text files: configuration, logs, lists and scripts. So there are several tools, each for a different situation:
+
+- `cat`: print the whole file. Like spilling all the pages onto the table.
+- `less`: page by page. Like reading a book.
+- `head` and `tail`: just the beginning or just the end. Like peeking at the first or last page.
+
+For the examples in this chapter we'll use `shopping.txt`, a 12-line shopping list.
+
+## `cat`: shows everything
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat shopping.txt
+  milk
+  eggs
+  bread
+  cheese
+  tomatoes
+  cucumbers
+  apples
+  rice
+  pasta
+  olive oil
+  coffee
+  chocolate
+`}</TerminalWindow>
+
+`cat` is great for short files. On a thousand-line file it prints everything at once and you only see the end. That's what `less` is for.
+
+<Callout type="tip" title="Where does the name come from?">
+`cat` is short for concatenate. It can join several files into one stream: `cat a.txt b.txt` prints both, one after the other.
+</Callout>
+
+## `less`: paging through a long file
+
+`less` opens the file full screen and lets you page through it. It doesn't change the file, it only shows it. A tool like this is called a **pager**.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ less /etc/services
+`}</TerminalWindow>
+
+Inside `less`, the commands are single keys:
+
+| Key | What it does |
+| --- | --- |
+| <Kbd>Space</Kbd> or <Kbd>f</Kbd> | Next page |
+| <Kbd>b</Kbd> | Previous page |
+| <Kbd>↑</Kbd> <Kbd>↓</Kbd> | One line up or down |
+| <Kbd>/</Kbd> followed by a word | Search. <Kbd>n</Kbd> jumps to the next match |
+| <Kbd>g</Kbd> / <Kbd>G</Kbd> | Start of the file / end of the file |
+| <Kbd>q</Kbd> | Quit |
+
+<Callout type="info" title="You'll meet it again">
+What you learned here is useful in the next chapter too: `man` help pages open in the same pager, and the same keys work there.
+</Callout>
+
+## `head` and `tail`: the beginning and the end
+
+`head` shows the start of a file, and `tail` the end. By default, 10 lines. With `-n` you choose how many:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ head -n 3 shopping.txt
+  milk
+  eggs
+  bread
+  $ tail -n 2 shopping.txt
+  coffee
+  chocolate
+`}</TerminalWindow>
+
+### Following in real time: `tail -f`
+
+Many programs write **logs**: a journal of what's happening, line after line. `tail -f` (follow) shows the end of the file and keeps showing each new line the moment it's written. Like sitting in front of an airport departures board that updates by itself.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ tail -f app.log
+  10:02:11 server started
+  10:02:15 user dana logged in
+  10:03:40 new order #1042
+`}</TerminalWindow>
+
+The command doesn't end on its own, because it's waiting for new lines. When you're done, stop it with <Kbd keys="Ctrl+C" />. We'll use this a lot in chapter 20, on logs.
+
+## Editing with nano
+
+**nano** is a simple text editor that works inside the terminal. It has no mouse or menus, but all the shortcuts are written at the bottom of the screen. It's installed on almost every distro.
+
+Open a file with `nano` and the file name. If the file doesn't exist, it's created when you save:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ nano todo.txt
+`}</TerminalWindow>
+
+The screen switches to the editor:
+
+```text title="What nano looks like"
+  GNU nano 7.2                         todo.txt
+call grandma
+buy a birthday gift
+finish chapter 7
+
+
+
+
+^G Help      ^O Write Out ^W Where Is  ^K Cut       ^T Execute   ^C Location
+^X Exit      ^R Read File ^\ Replace   ^U Paste     ^J Justify   ^/ Go To Line
+```
+
+**How do you read the bottom?** The `^` sign means <Kbd>Ctrl</Kbd>. So `^X Exit` says: <Kbd keys="Ctrl+X" /> to exit.
+
+<Steps>
+
+### Write
+
+Just type. The arrows move through the text, and <Kbd>Enter</Kbd> starts a new line. Exactly like Notepad.
+
+### Save: Ctrl+O
+
+<Kbd keys="Ctrl+O" /> (Write Out). nano asks which name to save to (`File Name to Write`) and suggests the current name. Press <Kbd>Enter</Kbd> to confirm.
+
+### Exit: Ctrl+X
+
+<Kbd keys="Ctrl+X" />. If there are unsaved changes, nano asks whether to save: <Kbd>Y</Kbd> to save, <Kbd>N</Kbd> to exit without saving.
+
+</Steps>
+
+Two more useful shortcuts: <Kbd keys="Ctrl+K" /> cuts the whole line, and <Kbd keys="Ctrl+U" /> pastes it.
+
+## Surviving vim
+
+**vim** is the most powerful editor in the terminal, and it's installed on almost every server. It's also famous for being hard to exit. You don't need to master it now, but it's worth knowing how to survive in it, because sometimes a program will open it for you.
+
+vim's secret: it has **modes**. Like a car with gears:
+
+- **Normal mode**: the default. Keys are **commands**, not letters. If you start typing, strange things happen.
+- **Insert mode**: here you type text as usual.
+
+| To... | Press |
+| --- | --- |
+| Start typing | <Kbd>i</Kbd> (insert). `-- INSERT --` appears at the bottom |
+| Go back to normal mode | <Kbd>Esc</Kbd> |
+| Save and quit | <Kbd>Esc</Kbd>, then `:wq` and <Kbd>Enter</Kbd> (write + quit) |
+| Quit **without** saving | <Kbd>Esc</Kbd>, then `:q!` and <Kbd>Enter</Kbd> |
+
+<Callout type="tip" title="Stuck in vim?">
+Press <Kbd>Esc</Kbd> a few times, type `:q!` and press <Kbd>Enter</Kbd>. You're out, with no change to the file. Want to learn vim seriously? The `vimtutor` command opens an interactive lesson of about half an hour.
+</Callout>
+
+## Don't have nano or vim?
+
+Most distros already have them installed. If not, here's how to install them. `sudo` runs the command with administrator rights and asks for your password. We'll explain it in chapter 9, and installing software in chapter 10.
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install nano vim
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install nano vim-enhanced
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S nano vim
+```
+
+</Distro>
+</DistroTabs>
+
+## Practice: reading files
+
+The simulator has no `nano` or `vim`, but you can practice `cat`, `head` and `tail` on the shopping list.
+
+There's also a way to add a line to a file with no editor at all: `echo "honey" >> shopping.txt`. The `>>` sign appends the text to the **end** of the file. We'll go deeper into it in chapter 12.
+
+<TerminalSimulator mission="read-files" />
+
+<Exercise title="A to-do list in nano">
+1. Use nano to create a file called `todo.txt` with at least four tasks, one per line.
+2. Save and exit.
+3. Show the whole file, and then only the first two tasks.
+
+<Solution>
+1. `nano todo.txt`, and type the tasks.
+2. <Kbd keys="Ctrl+O" />, <Kbd>Enter</Kbd> to confirm the name, then <Kbd keys="Ctrl+X" />.
+3. Show it:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat todo.txt
+  call grandma
+  buy a birthday gift
+  finish chapter 7
+  water the plants
+  $ head -n 2 todo.txt
+  call grandma
+  buy a birthday gift
+`}</TerminalWindow>
+</Solution>
+</Exercise>
+
+<Exercise title="Get in and out of vim">
+Open `todo.txt` in vim, add a new task at the end, and save. Then open it again, delete something on purpose, and quit **without** saving. Check with `cat` that the file wasn't harmed.
+
+<Solution>
+1. `vim todo.txt`. Use the arrows to get to the end of the last line.
+2. Press <Kbd>i</Kbd>, then <Kbd>End</Kbd> and <Kbd>Enter</Kbd> for a new line, and type the task.
+3. <Kbd>Esc</Kbd>, then `:wq` and <Kbd>Enter</Kbd>. Saved.
+4. `vim todo.txt` again, <Kbd>i</Kbd>, delete a few words.
+5. <Kbd>Esc</Kbd>, then `:q!` and <Kbd>Enter</Kbd>. You quit without saving.
+6. `cat todo.txt` shows the file with the new task, without the deletion.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`cat` and `less`", body: "`cat` prints everything. `less` pages through, and `q` quits." },
+    { title: "`head` and `tail -n`", body: "The beginning or end of a file. `tail -f` follows in real time." },
+    { title: "nano", body: "`Ctrl+O` saves, `Ctrl+X` exits. The `^` sign means Ctrl." },
+    { title: "vim", body: "`i` to type, `Esc` for commands, `:wq` to save and quit, `:q!` to quit without saving." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You have a 50,000-line log file and want to see the last 20 lines. What do you run?",
+      options: [
+        { text: "`cat app.log`", why: "`cat` prints all 50,000 lines. Not what you wanted." },
+        { text: "`head -n 20 app.log`", why: "`head` shows the **beginning**, and you need the end." },
+        { text: "`tail -n 20 app.log`", why: "`tail` shows the end, and `-n 20` sets how many lines." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "In nano, the bottom says `^O Write Out`. What do you press to save?",
+      options: [
+        { text: "`Shift+O`", why: "The `^` sign stands for Ctrl, not Shift." },
+        { text: "`Ctrl+O`", why: "`^` means Ctrl." },
+        { text: "`^` followed by `O`", why: "`^` is just notation. You press Ctrl together with O." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You opened vim by mistake and changed something. How do you quit without saving?",
+      options: [
+        { text: "`Esc`, then `:q!` and Enter", why: "The `!` says \"quit even if there are changes\", and the file stays unchanged." },
+        { text: "`Ctrl+X`", why: "That's nano's shortcut. In vim it doesn't quit." },
+        { text: "`:wq`", why: "`:wq` **saves** and then quits, so the change stays in the file." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

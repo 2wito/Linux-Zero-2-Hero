@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { challenges } from "@/lib/challenges";
 import { resolvePath, displayPath } from "@/lib/simulator/fs";
 import { missions } from "@/lib/simulator/missions";
 import { globToRegExp, parse, tokenize, type Token } from "@/lib/simulator/parse";
@@ -393,6 +394,16 @@ describe("Tab completion", () => {
   });
 });
 
+/** The solution commands of every chapter 28 challenge that has a simulator mission, keyed by mission id. */
+function challengeSolutions() {
+  const out: Record<string, string[]> = {};
+  for (const c of challenges) {
+    if (!c.mission) continue;
+    out[c.mission] = (c.solution.commands ?? "").split("\n").map((l) => l.replace(/^\$ /, ""));
+  }
+  return out;
+}
+
 describe("missions", () => {
   it("every mission has tasks, chips and both languages", () => {
     for (const m of Object.values(missions)) {
@@ -403,12 +414,14 @@ describe("missions", () => {
   });
 
   it("tasks start unchecked and can all be completed", () => {
-    const solutions: Record<keyof typeof missions, string[]> = {
+    const solutions = {
       "first-commands": ["whoami", "echo hi", "WHOAMI", "history"],
       navigate: ["cd projects", "cd /etc", "cd", "ls -a"],
       "files-dirs": ["mkdir -p blog/posts", "touch blog/posts/hello.md", "cp -r blog blog-backup", "mv Downloads/report.pdf Documents/", "rm Downloads/old-notes.txt"],
       "read-files": ["cat shopping.txt", "head -n 3 shopping.txt", "tail -n 2 shopping.txt", 'echo "honey" >> shopping.txt'],
-    };
+      // Challenge missions are solved with the exact commands chapter 28 shows as the solution.
+      ...challengeSolutions(),
+    } as Record<keyof typeof missions, string[]>;
     for (const [id, m] of Object.entries(missions)) {
       const shell = new Shell({ home: m.home });
       expect(m.tasks.map((t) => t.done(shell))).toEqual(m.tasks.map(() => false));

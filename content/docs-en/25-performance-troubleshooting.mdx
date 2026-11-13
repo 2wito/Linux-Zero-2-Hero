@@ -1,0 +1,272 @@
+# Performance and Troubleshooting
+
+<Callout type="info" title="What you'll learn">
+- Read the state of **memory** with `free`.
+- Understand the **load average** with `uptime`.
+- Find who's using the processor and memory: `top`, `htop` and `ps --sort`.
+- `vmstat` and `iostat`: is the problem in the processor, the memory or the disk?
+- A **troubleshooting method** that ties the whole guide together.
+</Callout>
+
+## The family doctor
+
+When you go to the doctor and say "I don't feel well", they don't start with surgery. They take your temperature, blood pressure and pulse. Only once they know **where** the problem is do they decide what to check in depth.
+
+When a computer is "slow", you work the same way. There are four "vital signs", and a tool for each:
+
+| Resource | The symptom | The tool |
+| --- | --- | --- |
+| **Processor** (CPU) | Everything's slow, the fan is screaming | `uptime`, `top` |
+| **Memory** (RAM) | Programs close, the disk is "working" nonstop | `free` |
+| **Disk** (I/O) | Opening files is slow, everything "freezes" for a moment | `vmstat`, `iostat` |
+| **Disk space** | Write errors, `No space left on device` | `df`, `du` (chapter 21) |
+
+## Memory: `free`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ free -h
+                 total        used        free      shared  buff/cache   available
+  Mem:           7.6Gi       564Mi       6.7Gi       3.8Mi       456Mi       7.0Gi
+  Swap:          2.0Gi          0B       2.0Gi
+`}</TerminalWindow>
+
+| Column | Meaning |
+| --- | --- |
+| `total` | All the memory in the computer |
+| `used` | Used by programs |
+| `free` | Not used at all |
+| `buff/cache` | Memory Linux uses as a **cache** for files, so reading them again is fast |
+| `available` | **How much memory is really available for new programs**. This is the column to look at |
+
+<Callout type="tip" title="A small free isn't a problem">
+Linux believes "free memory is wasted memory", so it fills it with a file cache. When a program needs memory, the cache is released immediately. So if `free` is small but `available` is big, everything is fine. A real problem is when `available` is close to zero, and `Swap` (swap space on disk, from chapter 21) is filling up.
+</Callout>
+
+When memory runs out completely, the kernel triggers the **OOM killer** (Out Of Memory): it picks the "hungriest" program and stops it by force, to save the rest of the system. If a program suddenly disappears, search `journalctl -k` (kernel messages) for the words `Out of memory`.
+
+## Processor: `uptime` and the load average
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ uptime
+   21:24:10 up 1 min,  1 user,  load average: 2.30, 0.77, 0.28
+  $ nproc
+  20
+`}</TerminalWindow>
+
+The **load average** is three numbers: the average over the last minute, the last 5 minutes and the last 15 minutes. It measures **how many processes, on average, are running or waiting for their turn**.
+
+Think of supermarket checkouts. `nproc` says how many checkouts there are (here, 20 processor cores). A load of `2.30` means that on average 2.3 people were in line. With 20 checkouts, there's no line at all. The rule:
+
+| Load (compared to `nproc`) | State |
+| --- | --- |
+| Below the number of cores | The processor has enough for everyone |
+| About the number of cores | Busy, but coping |
+| Well above the number of cores | Processes are waiting in line, and the system feels slow |
+
+And the trend tells a story: `2.30, 0.77, 0.28` says the load is **rising** right now (the last minute is higher than the long average). Here, on purpose, we ran three processes that use the processor for a minute. On a computer with one or two cores, the same load would be very noticeable.
+
+## Who's eating the processor? `top` and `ps`
+
+`yes` is a command that prints `y` endlessly, so it uses a whole core. Let's run two in the background, to see what a "stuck process" looks like:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ yes > /dev/null &
+  [1] 501
+  $ yes > /dev/null &
+  [2] 505
+  $ top -bn1 -o %CPU | head -10
+  top - 21:22:42 up 0 min,  1 user,  load average: 0.45, 0.10, 0.03
+  Tasks:  42 total,   3 running,  39 sleeping,   0 stopped,   0 zombie
+  %Cpu(s):  5.6 us,  4.2 sy,  0.0 ni, 87.3 id,  0.0 wa,  0.0 hi,  2.8 si,  0.0 st
+  MiB Mem :   7765.2 total,   6910.7 free,    547.0 used,    460.1 buff/cache
+  MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   7218.2 avail Mem
+
+      PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+      501 dana      20   0    3124   1600   1600 R 100.0   0.0   0:03.21 yes
+      505 dana      20   0    3124   1600   1600 R 100.0   0.0   0:01.70 yes
+        1 root      20   0   21848  11984   9104 S   0.0   0.2   0:00.33 systemd
+`}</TerminalWindow>
+
+The two `yes` processes are at the top of the list, each at `100.0` percent. (In `top`, 100% = one full core. On a computer with 20 cores, it can go up to 2000%.) The `S` (state) column is `R`, meaning running. Most processes are in state `S`, sleeping.
+
+The `%Cpu(s)` line sums up all the processors:
+
+| Abbreviation | Meaning |
+| --- | --- |
+| `us` | Time spent on regular programs (user) |
+| `sy` | Time spent in the kernel (system) |
+| `id` | Idle time. 87% here: the processor is mostly free |
+| `wa` | Time the processor is **waiting for the disk** (I/O wait). High = the disk is the bottleneck |
+
+`ps` with sorting gives a quick answer, with no refreshing screen:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ps aux --sort=-%cpu | head -3
+  USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+  dana         505 99.3  0.0   3124  1600 pts/2    R    21:22   0:03 yes
+  dana         501 99.1  0.0   3124  1600 pts/2    R    21:22   0:04 yes
+  $ kill %1 %2
+  [1]-  Terminated              yes > /dev/null
+  [2]+  Terminated              yes > /dev/null
+`}</TerminalWindow>
+
+`--sort=-%cpu` sorts by processor, highest first (`-`). For memory: `--sort=-%mem`. And once we found the culprits, we stopped them (chapter 11).
+
+**`htop`** shows the same information in a friendlier way: a graph per core, colors, scrolling and click-to-sort. <Kbd>F6</Kbd> picks the sort column, <Kbd>F9</Kbd> sends a signal to the highlighted process, and <Kbd>F10</Kbd> (or <Kbd>q</Kbd>) quits.
+
+<Callout type="warning" title="Before killing a process that uses a lot">
+A process using 100% CPU isn't always "stuck". Maybe it's compressing a video, building a project or running a backup. Stopping it halfway can leave half-written files. Check what it is (`ps -fp PID` shows the full command line), and if you need to stop it, start with a regular `kill`, not `kill -9`. And a root process (or `sudo kill`) may be a vital part of the system.
+</Callout>
+
+## The overall picture: `vmstat`
+
+`vmstat 1 3` prints a line every second, 3 times. It shows processor, memory and disk together:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ vmstat 1 2
+  procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------
+   r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu
+   3  0      0 7075460  55596 416632    0    0  2899   131 2527    0  6  7 87  1  0  0
+   3  0      0 7076908  55596 416632    0    0     0     0 1096   90  7  8 85  0  0  0
+`}</TerminalWindow>
+
+<Callout type="tip" title="Ignore the first line">
+`vmstat`'s first line is an average **since the computer booted**. The current state starts from the second line.
+</Callout>
+
+The columns most worth knowing:
+
+| Column | Meaning | When to worry |
+| --- | --- | --- |
+| `r` | Processes running or waiting for the processor | When it's higher than the number of cores for a long time |
+| `b` | **Blocked** processes, waiting for the disk | When it isn't zero for a long time |
+| `si` / `so` | Memory moving from and to swap | Any non-zero value, continuously: RAM has run out |
+| `wa` | Percent of time the processor waits for the disk | Above 10–20% |
+
+Here `r` is 3 (the three `yes` processes we ran), `si`/`so` are zero (memory is fine) and `wa` is zero (the disk is fine). In other words: the load is on the processor, and there are enough cores.
+
+**`iostat`** (from the `sysstat` package) shows how busy each disk is, separately. `iostat -x 1` shows the `%util` column: a disk close to 100% is the bottleneck.
+
+```bash
+sudo apt install sysstat
+iostat -x 1 3
+```
+
+## A troubleshooting method
+
+The tools matter, but the method matters more. When something doesn't work, go through the steps in order:
+
+<Steps>
+
+### What exactly doesn't work?
+
+"The site doesn't work" isn't a fault. "The site has been returning 502 since 14:00, only on the login page" is a fault. Describe it precisely: what you expected to happen, what actually happened, and since when.
+
+### What changed?
+
+This is the most important question. Almost every fault starts with a change: an update (`/var/log/apt/history.log`), an edited configuration file, a newly installed package, a disk that filled up, or new code that was deployed (`git log`).
+
+### What does the log say?
+
+`systemctl status`, `journalctl -u the-service --since "1 hour ago"`, `journalctl -p err -b` (chapter 20). Read the **first error message**, not just the last one.
+
+### Check the vital signs
+
+`df -h` (disk space), `free -h` (memory), `uptime` (load), `top` (who's using it). And for network faults: `ping`, `curl -I`, `ss -tlnp` (chapter 16).
+
+### Change one thing, then check
+
+Not five changes at once. One change, a check, and if it didn't help, **revert** the change before trying the next one. Otherwise, even if it works, you won't know why.
+
+### Write down what you did
+
+What the problem was, what caused it and what fixed it. Next time (and there will be a next time), it'll save you an hour.
+
+</Steps>
+
+<Callout type="warning" title="Don't copy fixes from the internet blindly">
+On forums you'll find "solutions" like `chmod -R 777 /var/www`, `sudo rm -rf ~/.cache/*`, or `sudo` on a script someone posted. Even if they "work", they may open a security hole or delete data. Understand what every command does (`man`, `tldr` from chapter 8) before you run it.
+</Callout>
+
+### Example: "the server is slow"
+
+1. `uptime`: a load of `8.5` on a server with 2 cores. The load is very high.
+2. `top`: one `python3` process is using 190% CPU.
+3. `ps -fp` with the PID: it's `report.py`, a reporting script.
+4. **What changed?** `crontab -l` shows that yesterday someone changed it to run every minute instead of every night, and each run takes more than a minute. The runs pile up on top of each other.
+5. Fix the cron line, and stop the duplicate runs.
+
+None of these steps required sophisticated knowledge. Just asking the right questions, in order, with the tools we learned throughout the guide.
+
+<Exercise title="A load test">
+1. Write down the current load average and `available`.
+2. Run two `yes > /dev/null` processes in the background.
+3. Find them in `top` or with `ps --sort`. How much CPU does each one use?
+4. Wait a minute, and check the load again. What changed?
+5. Stop both of them, and make sure they're not running.
+
+<Solution>
+
+```bash
+uptime
+free -h
+yes > /dev/null &
+yes > /dev/null &
+ps aux --sort=-%cpu | head -3
+uptime
+kill %1 %2
+jobs
+pgrep yes
+```
+
+3. Each one around 100%, meaning a whole core.
+4. The first load average number rises toward 2, and the others rise more slowly. (If you have few cores, you'll also feel the computer get slower.)
+5. `jobs` is empty and `pgrep yes` returns nothing: they've stopped.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`free -h`", body: "Look at `available`, not `free`. Linux uses free memory as a cache." },
+    { title: "`uptime` + `nproc`", body: "The load average over 1, 5 and 15 minutes. Compare it to the number of cores." },
+    { title: "`top` / `ps --sort`", body: "Who's using CPU and memory. `vmstat` shows whether the problem is in the CPU, swap or disk." },
+    { title: "Method", body: "What doesn't work → what changed → what the log says → vital signs → one change and a check." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "`free -h` shows a `free` of 200Mi and an `available` of 6Gi. Should you worry?",
+      options: [
+        { text: "Yes, memory is almost gone", why: "`free` is small because Linux uses memory as a cache. `available` is the right measure." },
+        { text: "No, 6Gi are available to programs. The rest is used as cache that's released when needed", why: "That's exactly the difference between free and available." },
+        { text: "You need to restart to clear the memory", why: "No need. The cache is released by itself." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "On a computer with 4 cores, `uptime` shows `load average: 12.0, 11.5, 10.8`. What does it mean?",
+      options: [
+        { text: "The computer is barely in use", why: "12 is three times the number of cores." },
+        { text: "There are 12 users logged in", why: "The load average counts processes running or waiting, not users." },
+        { text: "A heavy, sustained load: on average 8 processes are waiting for their turn", why: "12 processes are competing for 4 cores, and it's been going on for a quarter of an hour." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "A service stopped working this morning. What's the first question worth asking?",
+      options: [
+        { text: "What changed since yesterday?", why: "An update, a setting, a full disk or new code. Most faults start with a change." },
+        { text: "Which command from the internet will fix it?", why: "Without understanding the cause, a \"fix\" may make things worse." },
+        { text: "Should I reinstall the system?", why: "That's the last step, not the first." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

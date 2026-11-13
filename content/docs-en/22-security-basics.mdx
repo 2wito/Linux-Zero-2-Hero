@@ -1,0 +1,327 @@
+# Security Basics
+
+<Callout type="info" title="What you'll learn">
+- The **principle of least privilege**, and how to use `sudo` properly.
+- **Updates**: the most important step, and how to make it automatic.
+- A **firewall** with `ufw`.
+- **SSH keys**: `ssh-keygen` and `ssh-copy-id`.
+- **Hardening SSH**: turning off passwords and root login.
+</Callout>
+
+## Locks, alarms and keys
+
+Securing a computer is a lot like securing a house. No single step makes a house impenetrable, but a few simple habits stop almost every burglar:
+
+- **Lock the door** (updates: close known holes).
+- **Don't leave windows open** (a firewall: close ports you don't need).
+- **Don't give a key to everyone** (least privilege).
+- **A good lock instead of a weak one** (SSH keys instead of passwords).
+
+Most break-ins on Linux servers aren't done by genius hackers, but by automated bots that scan the whole internet looking for the common mistakes: unpatched software, a weak password and an open port.
+
+## Least privilege and `sudo` done right
+
+We met the principle in chapter 9: **give every user and every program only what they need, and no more**. In practice:
+
+1. **Work as a regular user**, and use `sudo` only for the specific command that needs it. Not `sudo -i` and working as root "because it's convenient".
+2. **Services run as their own user**, not as root. (Remember `User=` in the service file in chapter 19?)
+3. **Private files get `600`**, and private directories `700`.
+4. **`sudo` only for whoever needs it**. A user gets `sudo` by being added to the `sudo` group (on Ubuntu) or `wheel` (on Fedora/Arch).
+
+`sudo` also **logs every use** in `/var/log/auth.log`, including failed attempts. Here's what an attempt to run `sudo` without a password looks like:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ sudo -n true
+  sudo: a password is required
+  $ grep 'sudo:' /var/log/auth.log | tail -1
+  2026-11-11T21:17:34.717117+02:00 ubuntu sudo:     dana : a password is required ; TTY=pts/0 ; PWD=/tmp/tmp.XS9aFDdccN ; USER=root ; COMMAND=/usr/bin/true
+`}</TerminalWindow>
+
+**Who**, **from where**, **as whom** and **which command**. (`-n`, non-interactive, tells `sudo` not to ask for a password, but simply to fail.)
+
+<Callout type="warning" title="Don't edit /etc/sudoers directly">
+Edit `sudo`'s settings **only** with `sudo visudo`. It checks the syntax before saving. A mistake in a file edited directly can lock `sudo` completely, and then you can't fix the file either.
+</Callout>
+
+## Updates: locking the door
+
+Security holes are found in software every day, and they're fixed in updates. A system you don't update is a door with a lock every burglar knows how to open. This is the **most important** step in this chapter.
+
+We met the commands in chapter 10:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update && sudo apt upgrade
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf upgrade
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -Syu
+```
+
+</Distro>
+</DistroTabs>
+
+### Automatic security updates
+
+On Ubuntu, the **unattended-upgrades** service installs security updates by itself, once a day. It's on by default:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl is-enabled unattended-upgrades
+  enabled
+  $ cat /etc/apt/apt.conf.d/20auto-upgrades
+  APT::Periodic::Update-Package-Lists "1";
+  APT::Periodic::Unattended-Upgrade "1";
+`}</TerminalWindow>
+
+`"1"` = every day. If the file doesn't exist on your system, `sudo dpkg-reconfigure unattended-upgrades` turns the service on. On Fedora the equivalent is `dnf-automatic`.
+
+<Callout type="tip" title="Updates that need a restart">
+A kernel update takes effect only after a restart. On Ubuntu, if the file `/var/run/reboot-required` exists, it's time.
+</Callout>
+
+## A firewall: `ufw`
+
+A **firewall** decides which connections from outside may come in. In chapter 16 we saw with `ss` which ports are "listening". The firewall is the guard at the building's entrance: even if someone's home in the apartment, the guard doesn't let in visitors who aren't on the list.
+
+**ufw** (Uncomplicated Firewall) is the simple way to manage a firewall on Ubuntu. It's installed on Ubuntu Desktop and Ubuntu Server (but not on WSL, where Windows manages the firewall).
+
+```bash
+sudo apt install ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw enable
+sudo ufw status verbose
+```
+
+1. **`default deny incoming`**: by default, block every **incoming** connection.
+2. **`default allow outgoing`**: and allow every **outgoing** connection (browsing, updates).
+3. **`allow OpenSSH`**: open port 22, so you can connect back.
+4. **`enable`**: turn it on.
+
+<Callout type="danger" title="On a remote server: allow first, enable second">
+If you run `sudo ufw enable` on a remote server **before** `sudo ufw allow OpenSSH`, the firewall blocks your SSH connection, and you can't connect back. The order in the example is the right order.
+</Callout>
+
+A few more useful commands:
+
+| Command | What it does |
+| --- | --- |
+| `sudo ufw allow 80/tcp` | Open port 80 (a website) |
+| `sudo ufw allow from 192.168.1.0/24 to any port 22` | SSH only from the home network |
+| `sudo ufw status numbered` | The list of rules, with numbers |
+| `sudo ufw delete 3` | Delete rule number 3 |
+
+On Fedora and some other distros, the equivalent tool is `firewalld`, with the `firewall-cmd` command.
+
+## SSH keys: a better lock
+
+In chapter 16 we connected with `ssh` and a password. Passwords have two problems: they can be guessed (and bots try millions of guesses), and you have to type them every time.
+
+An **SSH key** is a pair of two files:
+
+- A **private key**: stays **only** with you, and never leaves the computer. Like your house key.
+- A **public key**: you copy it to every server you want to connect to. Like the lock. You can give it to anyone, because it opens nothing on its own.
+
+The server checks that you have the private key matching the lock, **without** the key itself ever crossing the network.
+
+### Creating a key: `ssh-keygen`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ssh-keygen -t ed25519 -C "dana@laptop"
+  Generating public/private ed25519 key pair.
+  Enter file in which to save the key (/home/dana/.ssh/id_ed25519):
+  Enter passphrase (empty for no passphrase):
+  Enter same passphrase again:
+  Your identification has been saved in /home/dana/.ssh/id_ed25519
+  Your public key has been saved in /home/dana/.ssh/id_ed25519.pub
+  The key fingerprint is:
+  SHA256:4ZgsOKxaZrX0fSSUq2gMnkto4aiWI6cCe8OfeawpU2E dana@laptop
+  The key's randomart image is:
+  +--[ED25519 256]--+
+  |                 |
+  |         .       |
+  |        +        |
+  | . .E. = o       |
+  | .=.+.+ S .      |
+  |++.B.= o o       |
+  |==O.=.o . .      |
+  |BOBo +o  .       |
+  |B+o=*o           |
+  +----[SHA256]-----+
+`}</TerminalWindow>
+
+- **`-t ed25519`**: the key type. Ed25519 is the modern, short and secure one. (You'll also see `rsa` in older guides.)
+- **`-C`**: a comment, to identify the key later. It's common to write the user and computer.
+- **Location**: press <Kbd>Enter</Kbd> to accept the default.
+- **passphrase**: a password that protects the private key if someone steals the file. (As in chapter 3, it doesn't show as you type.) **Strongly recommended**.
+
+The result is two files, with very different permissions:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -l ~/.ssh
+  total 8
+  -rw------- 1 dana dana 444 Nov 11 21:17 id_ed25519
+  -rw-r--r-- 1 dana dana  93 Nov 11 21:17 id_ed25519.pub
+  $ cat ~/.ssh/id_ed25519.pub
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGKT1CkigUXjL3JCxAzPvosnKvdTKZaKdJVwoTqxLZKe dana@laptop
+`}</TerminalWindow>
+
+The private one (`id_ed25519`) is `600`: only you. The public one (`.pub`) is `644`, and you can show and share it freely.
+
+<Callout type="danger" title="The private key never leaves the computer">
+Never send, upload or paste `id_ed25519` (without `.pub`) anywhere. Whoever holds it can connect to every server that trusts you. If it leaked, create a new pair and remove the old public key from every server.
+</Callout>
+
+### Copying the lock to the server: `ssh-copy-id`
+
+```bash
+ssh-copy-id dana@192.168.1.50
+```
+
+`ssh-copy-id` connects to the server (one last time with a password), and adds your public key to the `~/.ssh/authorized_keys` file **on the server**. From now on:
+
+```bash
+ssh dana@192.168.1.50
+```
+
+connects without the server's password. If you chose a passphrase, you'll be asked for **that** instead (once per session, if `ssh-agent` is running).
+
+On GitHub, GitLab and similar services, you paste the contents of the `.pub` file into your account settings (we'll do that in chapter 23).
+
+## Hardening an SSH server
+
+On a server that accepts SSH connections (the `openssh-server` package), the settings live in `/etc/ssh/sshd_config`. Once SSH keys work, change three lines:
+
+```text title="/etc/ssh/sshd_config"
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+```
+
+- **`PermitRootLogin no`**: no logging in directly as root. Log in as a regular user, and use `sudo`.
+- **`PasswordAuthentication no`**: keys only. Every one of the bots' guessing attempts fails immediately.
+- **`PubkeyAuthentication yes`**: allows keys (the default, but it's good to write it explicitly).
+
+Check the syntax, and restart:
+
+```bash
+sudo sshd -t
+sudo systemctl restart ssh
+```
+
+(On Fedora/Arch the service is called `sshd`.)
+
+<Callout type="danger" title="Don't lock yourself out">
+Before `PasswordAuthentication no`, make sure logging in with a **key** works. And after the `restart`, **don't close** the open SSH window: open a **new** window and try to connect. If it fails, the old window is still connected, and you can fix things. If you close it first, you may have no way back into the server.
+</Callout>
+
+## Who's been here?
+
+A few commands to check what's happening on the system:
+
+| Command | What it shows |
+| --- | --- |
+| `who` | Who's logged in right now |
+| `last` | The history of logins and restarts |
+| `sudo lastb` | **Failed** login attempts |
+| `grep "Failed password" /var/log/auth.log` | Failed SSH password attempts |
+| `ss -tlnp` | Which ports are open, and which program is listening (chapter 16) |
+
+On a server exposed to the internet, `sudo lastb` shows thousands of bot login attempts, with usernames like `admin`, `test` and `oracle`. That's no reason to panic, but it's a good reason to turn off passwords.
+
+## A checklist for a new server
+
+<Checklist
+  id="ch22-server-hardening"
+  title="Hardening a Linux server"
+  items={[
+    "I updated the whole system (`sudo apt update && sudo apt upgrade`)",
+    "Automatic security updates are on (`unattended-upgrades`)",
+    "I created a regular user with `sudo`, and I don't work as root",
+    "SSH login with a key works",
+    "`PasswordAuthentication no` and `PermitRootLogin no` in sshd_config",
+    "A firewall is on (`ufw`), with only the necessary ports open",
+    "I checked with `ss -tlnp` that no unfamiliar services are listening",
+  ]}
+/>
+
+<Exercise title="A first key">
+1. Check whether you already have an SSH key.
+2. If not, create an Ed25519 key with a comment that identifies you, and with a passphrase.
+3. Show the **public** key and its fingerprint.
+4. Check the permissions of `~/.ssh` and of the private key.
+
+<Solution>
+
+```bash
+ls -l ~/.ssh
+ssh-keygen -t ed25519 -C "dana@laptop"
+cat ~/.ssh/id_ed25519.pub
+ssh-keygen -lf ~/.ssh/id_ed25519.pub
+stat -c '%a %n' ~/.ssh ~/.ssh/id_ed25519
+```
+
+1. If there's a file called `id_ed25519` (or `id_rsa`), you already have a key. **Don't** create a new one with the same name: `ssh-keygen` asks whether to overwrite, and an overwritten key doesn't come back.
+3. `-l` shows the fingerprint: a short ID of the key, for example `256 SHA256:4Zgs... dana@laptop (ED25519)`.
+4. The right answer: `700` for the directory and `600` for the private key. If the permissions are more open, `ssh` refuses to use the key.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Least privilege", body: "A regular user, `sudo` for one command, services as their own user, `600` for private files." },
+    { title: "Updates", body: "The most important step. `unattended-upgrades` installs security updates by itself." },
+    { title: "`ufw`", body: "Block everything incoming, open only what's needed. On a remote server: allow before enable." },
+    { title: "SSH keys", body: "`ssh-keygen` creates a pair, `ssh-copy-id` copies the public one. Then turn off passwords." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "Which file may you share with servers and services?",
+      options: [
+        { text: "`~/.ssh/id_ed25519`", why: "That's the private key. It never leaves the computer." },
+        { text: "`~/.ssh/id_ed25519.pub`", why: "The public key is \"the lock\", and it's meant for exactly that." },
+        { text: "Both, if you transfer them encrypted", why: "You don't transfer the private one at all, not even encrypted." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "On a remote server, what's the right order when setting up `ufw`?",
+      options: [
+        { text: "`ufw enable`, then `ufw allow OpenSSH`", why: "The enable blocks your SSH before you get a chance to open it." },
+        { text: "It doesn't matter, `ufw` keeps existing connections", why: "Don't count on that on a server you have no physical access to." },
+        { text: "`ufw allow OpenSSH`, then `ufw enable`", why: "First open your own door, and only then lock the rest." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "Which security step has the biggest impact?",
+      options: [
+        { text: "Updating the system regularly", why: "Most break-ins exploit known holes that an update already fixed." },
+        { text: "Changing the SSH port to 2222", why: "It cuts noise in the logs, but doesn't stop a real attacker." },
+        { text: "Installing antivirus", why: "On Linux servers, updates and correct settings matter far more." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

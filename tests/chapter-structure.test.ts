@@ -49,3 +49,45 @@ describe.each(written)("%s", (slug) => {
     expect(src.match(/<Solution>/g)?.length).toBe(exercises);
   });
 });
+
+// English mirrors Hebrew (docs/PLAN.md phase 4e): every Hebrew chapter has an English file with the same template,
+// the same quiz answers and the same building blocks (terminals, code blocks, callouts, exercises, components).
+const english = new Set(Object.keys(chapterContent.en));
+
+describe("English translation", () => {
+  it("covers every Hebrew chapter", () => {
+    expect([...english].sort()).toEqual(Object.keys(chapterContent.he).sort());
+  });
+
+  describe.each(written)("%s (en)", (slug) => {
+    const he = readFileSync(`content/docs/${slug}.mdx`, "utf8");
+    const en = readFileSync(`content/docs-en/${slug}.mdx`, "utf8");
+
+    it("follows the chapter template in English", () => {
+      expect(en.startsWith("# ")).toBe(true);
+      expect(en.indexOf(`title="What you'll learn"`)).toBeGreaterThan(0);
+      expect(en.indexOf(`title="What you'll learn"`)).toBeLessThan(200);
+      expect(en).toContain("## Summary");
+      expect(en).toContain("## Quick quiz");
+    });
+
+    it("has the same quiz answers as the Hebrew chapter", () => {
+      const answers = (src: string) => quizQuestions(src).map((q) => [q.options.length, q.answer]);
+      expect(answers(en)).toEqual(answers(he));
+    });
+
+    it("keeps the same building blocks", () => {
+      const count = (src: string, re: RegExp) => src.match(re)?.length ?? 0;
+      for (const re of [/<TerminalWindow\b/g, /^```/gm, /<Callout\b/g, /<Exercise\b/g, /<TerminalSimulator\b/g, /<DistroTabs\b/g, /<Checklist\b/g, /^## /gm]) {
+        expect(count(en, re), String(re)).toBe(count(he, re));
+      }
+    });
+  });
+
+  it("keeps the components of the reference pages", () => {
+    for (const slug of [...english].filter((s) => !learning.has(s))) {
+      const tags = (src: string) => [...src.matchAll(/<([A-Z]\w+)/g)].map((m) => m[1]).sort();
+      expect(tags(readFileSync(`content/docs-en/${slug}.mdx`, "utf8")), slug).toEqual(tags(readFileSync(`content/docs/${slug}.mdx`, "utf8")));
+    }
+  });
+});

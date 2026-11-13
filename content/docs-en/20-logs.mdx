@@ -1,0 +1,284 @@
+# Logs and journalctl
+
+<Callout type="info" title="What you'll learn">
+- What a **log** is, and why it's your best friend when something doesn't work.
+- What's in `/var/log`, and how to read log files.
+- `journalctl`: filter by service (`-u`), follow in real time (`-f`), and by time (`--since`).
+- What `dmesg` is.
+- A method: how to track down a fault in the log.
+</Callout>
+
+## The shift logbook
+
+In a hospital, every nurse writes in the shift logbook what happened: who came in, which medication was given, and what was unusual. When something goes wrong at night, the morning team doesn't guess. They open the logbook.
+
+A **log** is a logbook like that. Almost every program in Linux writes into it what it's doing, and especially **what went wrong and why**. When something doesn't work, the first question is always: **what does the log say?**
+
+Linux has two main places for logs:
+
+1. **Text files** in the `/var/log` directory. The traditional way.
+2. **The journal** of systemd, which you read with `journalctl`. The modern way.
+
+On Ubuntu both work side by side, and most messages reach both.
+
+## `/var/log`: the logbook cabinet
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls /var/log
+  README                 dmesg           kern.log.2.gz
+  alternatives.log       dmesg.0         kern.log.3.gz
+  alternatives.log.1     dmesg.1.gz      kern.log.4.gz
+  alternatives.log.2.gz  dmesg.2.gz      landscape
+  alternatives.log.3.gz  dmesg.3.gz      lastlog
+  alternatives.log.4.gz  dmesg.4.gz      private
+  apt                    dpkg.log        syslog
+  auth.log               dpkg.log.1      syslog.1
+  auth.log.1             dpkg.log.2.gz   syslog.2.gz
+  auth.log.2.gz          dpkg.log.3.gz   syslog.3.gz
+  auth.log.3.gz          dpkg.log.4.gz   syslog.4.gz
+  auth.log.4.gz          faillog         ubuntu-advantage-apt-hook.log
+  bootstrap.log          fontconfig.log  unattended-upgrades
+  btmp                   journal         wtmp
+  btmp.1                 kern.log
+  dist-upgrade           kern.log.1
+`}</TerminalWindow>
+
+The files worth knowing:
+
+| File | What's in it |
+| --- | --- |
+| `syslog` | The general log: almost everything that happens on the system (Fedora/Arch don't have it; they use the journal) |
+| `auth.log` | Logins, `sudo`, failed login attempts |
+| `kern.log` | Kernel messages (hardware, drivers) |
+| `dpkg.log`, `apt/` | Which packages were installed, upgraded or removed, and when |
+
+### `.1`, `.2.gz`: log rotation
+
+Did you notice `syslog.1` and `syslog.2.gz`? Logs grow all the time, so the system **rotates** them: every so often, `syslog` becomes `syslog.1`, the older one is compressed into `.2.gz`, and so on. The oldest ones are deleted. That way the disk doesn't fill up with logs.
+
+You read a compressed log with `zcat` (or `zgrep` to search it), as we learned in chapter 17.
+
+### Reading the log
+
+Logs are very big (`syslog` here is more than 2MB), so `cat` isn't the right choice. Use `tail`, `less` and `grep`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -l /var/log/syslog /var/log/auth.log
+  -rw-r----- 1 syslog adm   33630 Nov 11 21:13 /var/log/auth.log
+  -rw-r----- 1 syslog adm 2248003 Nov 11 21:13 /var/log/syslog
+  $ tail -3 /var/log/syslog
+  2026-11-11T21:13:39.694692+02:00 ubuntu systemd[437]: Finished wslg-session.service - WSLg user service.
+  2026-11-11T21:13:39.694736+02:00 ubuntu systemd[437]: Startup finished in 122ms.
+  2026-11-11T21:13:39.910280+02:00 ubuntu crontab[486]: (dana) LIST (dana)
+`}</TerminalWindow>
+
+Every line is built the same way: **when** (exact date and time), **where** (the computer's name), **who** (the program, with its PID in brackets) and **what** (the message).
+
+Notice the permissions: `rw-r-----`, owner `syslog` and group `adm`. Only members of the `adm` group can read the logs. The first user on Ubuntu belongs to it (we saw that with `id`, in chapter 9), and other users will need `sudo`.
+
+### Writing to the log yourself: `logger`
+
+`logger` writes a message to the system log. It's handy in scripts, so they leave a trace too:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ logger 'Hello from dana: testing logs'
+  $ tail -1 /var/log/syslog
+  2026-11-11T21:13:40.080852+02:00 ubuntu dana: Hello from dana: testing logs
+`}</TerminalWindow>
+
+## `journalctl`: systemd's logbook
+
+systemd collects the messages of **all** services into one place, the **journal**. The advantage: you can filter it by service, time, severity and more, without `grep`.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -n 3 --no-pager
+  Nov 11 21:13:39 ubuntu systemd[437]: Startup finished in 122ms.
+  Nov 11 21:13:39 ubuntu crontab[486]: (dana) LIST (dana)
+  Nov 11 21:13:40 ubuntu dana[494]: Hello from dana: testing logs
+`}</TerminalWindow>
+
+`-n 3`: the last three lines. With no options, `journalctl` opens the **whole** journal, oldest to newest, inside `less` (exit with <Kbd>q</Kbd>, and <Kbd keys="Shift+G" /> jumps to the end).
+
+### The important filters
+
+| Option | What it shows |
+| --- | --- |
+| `-u cron` | Only the `cron` service (unit) |
+| `-f` | Follows: shows new lines the moment they're written |
+| `-n 50` | The last 50 lines |
+| `--since "1 hour ago"` | From the last hour. Also `today`, `yesterday` or `"2026-11-11 08:00"` |
+| `-p err` | Only errors and above (priority) |
+| `-b` | Only since the current boot. `-b -1` = since the previous boot |
+| `-g "text"` | Only lines containing the text (grep) |
+| `--user` | The logs of user services (as in chapter 19) |
+
+And you can combine them:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -u cron --since '1 hour ago' --no-pager | head -4
+  Nov 11 20:17:03 ubuntu systemd[1]: Started cron.service - Regular background program processing daemon.
+  Nov 11 20:17:03 ubuntu (cron)[227]: cron.service: Referenced but unset environment variable evaluates to an empty string: EXTRA_OPTS
+  Nov 11 20:17:03 ubuntu cron[227]: (CRON) INFO (pidfile fd = 3)
+  Nov 11 20:17:03 ubuntu cron[227]: (CRON) INFO (Running @reboot jobs)
+`}</TerminalWindow>
+
+### Errors only
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -p err -b --no-pager | head -3
+  Nov 11 21:13:36 ubuntu kernel: PCI: Fatal: No config space access function found
+  Nov 11 21:13:36 ubuntu kernel: /dev/sdd: Can't open blockdev
+  Nov 11 21:13:37 ubuntu kernel: misc dxg: dxgk: dxgkio_is_feature_enabled: Ioctl failed: -22
+`}</TerminalWindow>
+
+<Callout type="tip" title="Not every error in the log is a problem">
+The word `Fatal` sounds alarming, but this system works perfectly well. These are kernel messages about hardware that doesn't exist in WSL's virtual machine. Every system has "normal" errors like these. What matters is an error **related to your fault**, at the **time** it happened.
+</Callout>
+
+### Following in real time: `-f`
+
+`-f` (follow) shows the last lines, then **keeps waiting** and shows each new line the moment it's written. Here, while it was running, two scripts wrote to the log with `logger`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -f -n 2
+  Nov 11 21:13:53 ubuntu systemd[437]: Reloading...
+  Nov 11 21:13:53 ubuntu systemd[437]: Reloading finished in 49 ms.
+  ...
+  Nov 11 21:14:10 ubuntu dana[604]: backup finished
+  Nov 11 21:14:12 ubuntu dana[581]: disk almost full
+  ^C
+`}</TerminalWindow>
+
+Exit with <Kbd keys="Ctrl+C" />. This is the most useful diagnostic tool: open `journalctl -f` in one window, and try to reproduce the fault in another. (`tail -f` does the same with a regular log file.)
+
+## `dmesg`: what the kernel says
+
+`dmesg` shows the **kernel's** messages: hardware detection, disks, USB and drivers. It starts from the moment of boot:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ dmesg | head -3
+  [    0.000000] Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+  [    0.000000] Command line: initrd=\\initrd.img WSL_ROOT_INIT=1 panic=-1 nr_cpus=20 hv_utils.timesync_implicit=1 console=hvc0 debug pty.legacy_count=0 WSL_ENABLE_CRASH_DUMP=1
+  [    0.000000] KERNEL supported cpus:
+`}</TerminalWindow>
+
+The number in brackets is seconds since boot. `dmesg` is mostly useful when hardware isn't working: plugged in a USB disk and nothing happens? `sudo dmesg -w` (follow), plug it in again, and see what the kernel thinks of it. (On some distros `dmesg` needs `sudo` even without `-w`.)
+
+## A method: tracking down a fault
+
+Here's a real scenario. We wrote a service (as in chapter 19), started it, and it doesn't work. Instead of guessing, follow four steps:
+
+**1. What's the state?**
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user status myapp --no-pager
+  × myapp.service - My little app
+       Loaded: loaded (/home/dana/.config/systemd/user/myapp.service; static)
+       Active: failed (Result: exit-code) since Wed 2026-11-11 21:13:52 IST; 1s ago
+     Duration: 20ms
+      Process: 538 ExecStart=/usr/bin/python3 /home/dana/myapp/app.py (code=exited, status=2)
+     Main PID: 538 (code=exited, status=2)
+          CPU: 21ms
+
+  Nov 11 21:13:52 ubuntu systemd[437]: Started myapp.service - My little app.
+  Nov 11 21:13:52 ubuntu python3[538]: /usr/bin/python3: can't open file '/home/dana/myapp/app.py': [Errno 2] No such file or directory
+  Nov 11 21:13:52 ubuntu systemd[437]: myapp.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+  Nov 11 21:13:52 ubuntu systemd[437]: myapp.service: Failed with result 'exit-code'.
+`}</TerminalWindow>
+
+A red `×` and `failed`. The service started and fell over after 20 milliseconds.
+
+**2. What does the log say?** Here `status` already showed the last lines. If you need more, `journalctl --user -u myapp` (or `journalctl -u myapp` for a system service) shows the whole history.
+
+**3. Read the first message that looks like an error,** not the last one. The `Main process exited` and `Failed with result` lines are only the **result**. The **cause** is on the line before them: `can't open file '/home/dana/myapp/app.py': No such file or directory`. The file the service tries to run doesn't exist (maybe a typo in the path, maybe it's in another directory).
+
+**4. Fix it, and check again.** Fix the path in the service file, `daemon-reload`, `restart`, and `status` again.
+
+<Callout type="tip" title="Two questions for every fault">
+**What changed?** (An update? An edited configuration file? A newly installed package?) And **what does the log say?** Most faults are solved by answering both. And if the error message isn't clear, copy it **as is** into a web search, minus the parts unique to you (like file names and PIDs).
+</Callout>
+
+## Logs take up space
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl --disk-usage
+  Archived and active journals take up 769.5M in the file system.
+`}</TerminalWindow>
+
+The journal cleans itself up when it reaches the limit set for it, but if the disk is filling up, you can trim it manually:
+
+<Callout type="warning" title="vacuum deletes history">
+`sudo journalctl --vacuum-time=7d` permanently deletes every log older than a week. After that, if you need to investigate a fault from two weeks ago, the information will be gone. **And never delete files in `/var/log` with `rm`**: programs writing to them may stop logging, and you'll lose the evidence exactly when you need it.
+</Callout>
+
+<Exercise title="Log detective">
+1. Show the last 10 lines of the journal.
+2. Show today's messages from the `cron` service.
+3. Write a message to the log with `logger`, and find it with `journalctl` and `-g`.
+4. Open `journalctl -f` in one terminal, and from a second terminal run `logger "hello"`. What happened?
+
+<Solution>
+
+```bash
+journalctl -n 10
+journalctl -u cron --since today
+logger "my test message"
+journalctl --since today -g "my test message"
+journalctl -f
+```
+
+And in the second terminal:
+
+```bash
+logger "hello"
+```
+
+In step 4, the line shows up in `journalctl -f` immediately, with your name and `logger`'s PID. <Kbd keys="Ctrl+C" /> exits.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`/var/log`", body: "`syslog`, `auth.log`, `kern.log`. Read with `tail`, `less` and `grep`. Old ones are compressed to `.gz`." },
+    { title: "`journalctl -u X`", body: "One service's log. Filter with `--since`, `-p err`, `-b` and `-g`." },
+    { title: "`journalctl -f`", body: "Follow in real time. Open it, and reproduce the fault in another window." },
+    { title: "Method", body: "`status` → log → the **first** message that looks like an error → fix → check." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "The `nginx` service won't start. Which command best shows why?",
+      options: [
+        { text: "`cat /var/log/syslog`", why: "It works, but you'll have to find the relevant lines among thousands." },
+        { text: "`journalctl -u nginx`", why: "Only this service's lines, in chronological order." },
+        { text: "`dmesg`", why: "`dmesg` shows kernel messages, not services'." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "What does `journalctl -f` do?",
+      options: [
+        { text: "Shows new lines the moment they're written, until Ctrl+C", why: "f = follow." },
+        { text: "Deletes the log (force)", why: "`-f` doesn't delete anything." },
+        { text: "Shows only critical (fatal) errors", why: "To filter by severity, use `-p`." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "The disk is full, and `/var/log/syslog` is huge. What should you **not** do?",
+      options: [
+        { text: "Check how much space the journal takes with `journalctl --disk-usage`", why: "That's a good first step." },
+        { text: "Check why a program is writing so much to the log", why: "That's usually the real problem." },
+        { text: "`sudo rm /var/log/syslog`", why: "Programs writing to it may stop logging, and you'll lose important information." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

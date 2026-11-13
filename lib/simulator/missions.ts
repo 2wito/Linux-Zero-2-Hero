@@ -70,6 +70,60 @@ export const missions = {
       },
     ],
   },
+  // Chapter 28 (practice challenges), beginner level.
+  "challenge-treasure": {
+    home: {
+      ...defaultHome,
+      ".cave": { "map.txt": "The treasure is hidden in Documents.\nIts name starts with a dot.\n" },
+      Documents: { ".chest.txt": "You found the treasure! Well done.\n" },
+    },
+    chips: ["ls", "pwd", "ls Documents", "cd ~"],
+    tasks: [
+      { he: "גלו את התיקייה המוסתרת בבית", en: "Reveal the hidden directory at home", done: (sh) => ran(sh, "ls", (a) => hasFlag(a, "a")) },
+      { he: "קראו את המפה שבתוכה", en: "Read the map inside it", done: (sh) => ran(sh, "cat", (a) => a.some((x) => x.endsWith("map.txt"))) },
+      { he: "מצאו את האוצר וקראו אותו", en: "Find the treasure and read it", done: (sh) => ran(sh, "cat", (a) => a.some((x) => x.endsWith(".chest.txt"))) },
+    ],
+  },
+  "challenge-organize": {
+    home: { ...defaultHome, Downloads: { "beach1.jpg": "", "beach2.jpg": "", "beach3.jpg": "", "invoice.pdf": "", "setup.tmp": "" } },
+    chips: ["ls Downloads", "ls Documents", "ls Pictures/beach", "pwd"],
+    tasks: [
+      { he: "צרו את `Pictures/beach` בפקודה אחת", en: "Create `Pictures/beach` in one command", done: (sh) => isDir(sh, `${HOME}/Pictures/beach`) },
+      {
+        he: "העבירו את שלוש התמונות ל-`Pictures/beach` בפקודה אחת",
+        en: "Move all three photos to `Pictures/beach` in one command",
+        done: (sh) =>
+          ran(sh, "mv", (a) => a.filter((x) => x.endsWith(".jpg")).length >= 3) &&
+          [1, 2, 3].every((n) => isFile(sh, `${HOME}/Pictures/beach/beach${n}.jpg`)),
+      },
+      { he: "העבירו את `invoice.pdf` ל-`Documents`", en: "Move `invoice.pdf` to `Documents`", done: (sh) => isFile(sh, `${HOME}/Documents/invoice.pdf`) },
+      { he: "מחקו את `setup.tmp`", en: "Delete `setup.tmp`", done: (sh) => !sh.fs.get(`${HOME}/Downloads/setup.tmp`) },
+    ],
+  },
+  "challenge-shopping": {
+    home: { ...defaultHome, "shopping.txt": shopping.join("\n") + "\n" },
+    chips: ["cat shopping.txt", "cat -n shopping.txt", "ls", "cat shopping.bak"],
+    tasks: [
+      {
+        he: "גבו את הרשימה ל-`shopping.bak`, **לפני** שמשנים אותה",
+        en: "Back up the list to `shopping.bak` **before** changing it",
+        done: (sh) => {
+          const node = sh.fs.get(`${HOME}/shopping.bak`);
+          return node?.type === "file" && node.content === shopping.join("\n") + "\n";
+        },
+      },
+      {
+        he: "הוסיפו שני מוצרים לסוף הרשימה",
+        en: "Add two items to the end of the list",
+        done: (sh) => {
+          const node = sh.fs.get(`${HOME}/shopping.txt`);
+          return node?.type === "file" && node.content.startsWith(shopping.join("\n")) && node.content.split("\n").filter(Boolean).length >= shopping.length + 2;
+        },
+      },
+      { he: "הציגו רק את 3 השורות האחרונות", en: "Show only the last 3 lines", done: (sh) => ran(sh, "tail", (a) => a.join(" ").includes("3")) },
+      { he: "בדקו עם `grep` אם `coffee` ברשימה", en: "Check with `grep` whether `coffee` is on the list", done: (sh) => ran(sh, "grep", (a) => a.includes("coffee")) },
+    ],
+  },
 } satisfies Record<string, Mission>;
 
 export type MissionId = keyof typeof missions;

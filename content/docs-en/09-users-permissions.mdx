@@ -1,0 +1,311 @@
+# Users, Groups and Permissions
+
+<Callout type="info" title="What you'll learn">
+- Who **users** and **groups** are, and how to check who you are.
+- How to read the `rwx` permissions in the output of `ls -l`.
+- Change permissions with `chmod`, in **symbolic** and **numeric** form.
+- Change ownership with `chown`.
+- What `sudo` is, and why root is dangerous.
+</Callout>
+
+## A building with keys
+
+Linux was built from the start as a system that many people use together. That's why every file has an **owner**, and every file has a "lock".
+
+Think of an office building:
+
+- The **owner** (user) is whoever rents the room. They have their own key.
+- The **group** is their team. The whole team can get a shared key.
+- **Everyone else** (others) is the rest of the people in the building.
+
+Each of those three can be given, or not given, three actions: **read**, **write** and **execute**.
+
+## Who am I?
+
+We already met `whoami`. The `id` command shows more: your user number and all your groups:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ id
+  uid=1000(dana) gid=1000(dana) groups=1000(dana),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users)
+  $ groups
+  dana adm cdrom sudo dip plugdev users
+`}</TerminalWindow>
+
+- `uid` is the user number. The first user on a system usually gets `1000`. Root always has `0`.
+- `gid` is the primary group. Every user gets a group with their own name.
+- `groups` are all the groups you belong to. Notice `sudo`: membership in it is what allows you to perform administrative actions.
+
+## Reading permissions
+
+`ls -l` shows the permissions at the start of each line:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls -l
+  total 12
+  -rw-r--r-- 1 dana dana   28 Nov 11 20:42 hello.sh
+  -rw-r--r-- 1 dana dana    3 Nov 11 20:42 notes.txt
+  drwxr-xr-x 2 dana dana 4096 Nov 11 20:42 projects
+`}</TerminalWindow>
+
+Let's take apart `-rw-r--r--`. The first character is the **type**, followed by three triplets:
+
+| Part | In the example | Meaning |
+| --- | --- | --- |
+| Type | `-` | A regular file. `d` is a directory, `l` a shortcut (link) |
+| Owner | `rw-` | `dana` can read and write |
+| Group | `r--` | Members of the `dana` group can only read |
+| Others | `r--` | Everyone else can only read |
+
+After the permissions come the **owner's name** (`dana`) and the **group's name** (`dana`).
+
+### What each letter means
+
+| Letter | On a file | On a directory |
+| --- | --- | --- |
+| `r` (read) | Read the contents | See which files are in it (`ls`) |
+| `w` (write) | Change the contents | Create, delete and rename files inside it |
+| `x` (execute) | Run it as a program | Enter it (`cd`) |
+| `-` | No permission | No permission |
+
+<Callout type="tip" title="x on a directory = a key to the door">
+On a directory, `x` is the permission to enter. Without `x` you can't `cd` into the directory, even with `r`. That's why directories almost always have `x` together with `r`.
+</Callout>
+
+## Changing permissions: symbolic `chmod`
+
+`chmod` (change mode) changes permissions. The **symbolic** form is built like a short sentence: **who**, **what to do**, **which permission**.
+
+| Who | Action | Permission |
+| --- | --- | --- |
+| `u` owner (user) | `+` add | `r` |
+| `g` group | `-` remove | `w` |
+| `o` others | `=` set exactly | `x` |
+| `a` everyone (all) | | |
+
+The classic example: we wrote a script and want to run it. (We'll explain the `./` before the name in chapter 15.)
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ./hello.sh
+  bash: ./hello.sh: Permission denied
+  $ chmod u+x hello.sh
+  $ ls -l hello.sh
+  -rwxr--r-- 1 dana dana 28 Nov 11 20:42 hello.sh
+  $ ./hello.sh
+  שלום
+`}</TerminalWindow>
+
+- At first there was no `x`, so we got **Permission denied**.
+- `u+x`: for the owner, add, execute permission. Now the first triplet says `rwx`, and the script runs. (It prints "shalom", Hebrew for hello.)
+
+You can change several things at once, with a comma between them:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ chmod g-w,o-r notes.txt
+  $ ls -l notes.txt
+  -rw-r----- 1 dana dana 3 Nov 11 20:42 notes.txt
+  $ chmod o=r notes.txt
+  $ ls -l notes.txt
+  -rw-r--r-- 1 dana dana 3 Nov 11 20:42 notes.txt
+`}</TerminalWindow>
+
+## Numeric `chmod`
+
+There's a shorter way, which you'll see a lot online: **three digits**, one per triplet. Each permission is worth a number, and you add them up:
+
+| Permission | Value |
+| --- | --- |
+| `r` | 4 |
+| `w` | 2 |
+| `x` | 1 |
+
+So `rwx` = 4+2+1 = **7**, `rw-` = 4+2 = **6**, `r-x` = 4+1 = **5** and `r--` = **4**.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ chmod 600 notes.txt
+  $ ls -l notes.txt
+  -rw------- 1 dana dana 3 Nov 11 20:42 notes.txt
+  $ chmod 755 hello.sh
+  $ ls -l hello.sh
+  -rwxr-xr-x 1 dana dana 28 Nov 11 20:42 hello.sh
+`}</TerminalWindow>
+
+The combinations worth remembering:
+
+| Number | Permissions | When to use it |
+| --- | --- | --- |
+| `644` | `rw-r--r--` | A regular file. The default |
+| `600` | `rw-------` | A private file, like an SSH key or passwords |
+| `755` | `rwxr-xr-x` | A script or directory everyone can use |
+| `700` | `rwx------` | A private directory |
+
+<Callout type="warning" title="Don't use chmod 777">
+`777` lets **anyone** on the system read, change and run the file. On forums it shows up as the "fix" for a Permission denied error, but it's like leaving the door open because you lost the key. The right fix is almost always `chown` to the correct owner, or `644`/`755`.
+</Callout>
+
+## The default: `umask`
+
+New files are created with `644` and directories with `755`. Who decides that? The `umask`, a "filter" that removes permissions from every new file:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ umask
+  0022
+  $ touch new.txt
+  $ mkdir newdir
+  $ ls -ld new.txt newdir
+  -rw-r--r-- 1 dana dana    0 Nov 11 20:42 new.txt
+  drwxr-xr-x 2 dana dana 4096 Nov 11 20:42 newdir
+`}</TerminalWindow>
+
+`022` means: remove write permission from the group and from others. There's usually no reason to change it. (`-d` in `ls -ld` shows the directory itself, not what's inside it.)
+
+## Changing the owner: `chown`
+
+`chown` (change owner) hands a file to another owner. Only root is allowed to do this, so nobody can "dump" files on another user:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ chown root notes.txt
+  chown: changing ownership of 'notes.txt': Operation not permitted
+`}</TerminalWindow>
+
+So it's used with `sudo` (we'll meet it in a moment). The full form is `owner:group`:
+
+```bash
+sudo chown dana:dana notes.txt
+sudo chown -R dana:www-data website/
+```
+
+- `dana:dana`: both the owner and the group.
+- `-R` (recursive): on the directory and everything inside it.
+
+## root and `sudo`
+
+**root** is the superuser. It's allowed to do anything: read any file, delete any file and change any setting. A regular user, on the other hand, is stopped at the system's files:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat /etc/shadow
+  cat: /etc/shadow: Permission denied
+  $ ls -l /etc/shadow
+  -rw-r----- 1 root shadow 800 Nov 30  2025 /etc/shadow
+  $ ls /root
+  ls: cannot open directory '/root': Permission denied
+`}</TerminalWindow>
+
+`/etc/shadow` stores the (hashed) passwords of all users, so only root and the `shadow` group can read it.
+
+When you need to do something administrative, you don't log in as root. You use `sudo` ("superuser do"): it runs **one command** with root privileges, after you type **your own password**:
+
+```bash
+sudo cat /etc/shadow
+```
+
+`sudo` remembers the password for a few minutes, so you don't have to type it for every command.
+
+<Callout type="warning" title="sudo turns off the safety net">
+With `sudo`, the system won't stop you. `sudo rm -rf` on the wrong directory deletes system files without asking. Before every `sudo`, stop for a second and ask: do I understand what this command does? And don't run `sudo` on a command you copied from the internet without understanding it.
+</Callout>
+
+### Why not work as root all the time?
+
+For the same reason a bank clerk doesn't walk around all day with the vault key in their pocket. Most of the time you don't need it, and **one mistake** or one malicious program with root privileges can wreck the whole system. The principle is called **least privilege**: give everyone only what they really need.
+
+## Two special marks you'll meet
+
+Sometimes you'll see `s` or `t` instead of `x`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -ld /tmp
+  drwxrwxrwt 10 root root 4096 Nov 11 20:42 /tmp
+  $ ls -l /usr/bin/passwd
+  -rwsr-xr-x 1 root root 64152 May 30  2024 /usr/bin/passwd
+`}</TerminalWindow>
+
+- **`t` (sticky bit)** on `/tmp`: everyone can create files there, but each person can delete **only their own**.
+- **`s` (setuid)** on `passwd`: the program runs with its owner's privileges (root). That's how a regular user can change their own password, even though `/etc/shadow` belongs to root.
+
+You don't need to set these yourself. It's enough to recognize them.
+
+<Exercise title="Private, public and executable">
+In a new directory:
+
+1. Create a file called `secret.txt` and set its permissions so **only you** can read and write it.
+2. Create a file `run.sh` with the line `echo works`, and give it permissions so everyone can run and read it, but only you can change it.
+3. Check with `ls -l` and run `./run.sh`.
+
+<Solution>
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ touch secret.txt
+  $ chmod 600 secret.txt
+  $ echo 'echo works' > run.sh
+  $ chmod 755 run.sh
+  $ ls -l
+  total 4
+  -rwxr-xr-x 1 dana dana 11 Nov 11 20:44 run.sh
+  -rw------- 1 dana dana  0 Nov 11 20:44 secret.txt
+  $ ./run.sh
+  works
+`}</TerminalWindow>
+
+You can also use the symbolic form: `chmod go-rw secret.txt` and `chmod a+x run.sh`. We'll learn about the `>` arrow in chapter 12.
+</Solution>
+</Exercise>
+
+<Exercise title="Translate permissions">
+What's the number for each of these permissions?
+
+1. `rwxr-x---`
+2. `rw-rw-r--`
+3. `r--------`
+
+<Solution>
+1. `rwx` = 7, `r-x` = 5, `---` = 0. So **750**.
+2. `rw-` = 6, `rw-` = 6, `r--` = 4. So **664**.
+3. `r--` = 4, and nothing for the rest. So **400**. That's the common permission for key files that must not be changed.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`rwx` × 3", body: "Read, write and execute, for the owner, the group and others." },
+    { title: "`chmod u+x` / `chmod 755`", body: "Changing permissions: symbolic (who, action, permission) or numeric (r=4, w=2, x=1)." },
+    { title: "`chown`", body: "Changing the owner. Requires `sudo`." },
+    { title: "`sudo`", body: "One command with root privileges. Carefully, and only when you understand the command." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What are the permissions of `chmod 640`?",
+      options: [
+        { text: "`rw-r-----`", why: "6 = `rw-` for the owner, 4 = `r--` for the group, and 0 = nothing for others." },
+        { text: "`rwxr-----`", why: "`rwx` is 7, not 6." },
+        { text: "`rw-rw----`", why: "That's 660. The middle digit is 4, meaning read only." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "You got Permission denied on a file of your website. What should you **not** do?",
+      options: [
+        { text: "Check with `ls -l` who the owner is and what the permissions are", why: "That's exactly the right first step." },
+        { text: "`chmod 777` the file", why: "Then anyone on the system can change it. Fix the owner or the exact permission instead." },
+        { text: "Fix the owner with `sudo chown`", why: "That's usually the right fix." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "What does the `x` permission mean on a **directory**?",
+      options: [
+        { text: "That it can be run as a program", why: "A directory doesn't run. On a directory, `x` means something else." },
+        { text: "That it can be deleted", why: "That's decided by the `w` permission of the directory above it." },
+        { text: "That you can enter it with `cd`", why: "On a directory, `x` is the key to the door." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

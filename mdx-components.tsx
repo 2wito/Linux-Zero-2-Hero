@@ -1,7 +1,9 @@
 import { Children, isValidElement, type ReactElement } from "react";
 import type { MDXComponents } from "mdx/types";
 import { Callout } from "@/components/callout";
+import { Challenges } from "@/components/challenges";
 import { CheatSheet } from "@/components/cheat-sheet";
+import { Feedback, FinishProgress } from "@/components/finish";
 import { Glossary } from "@/components/glossary";
 import { Checklist } from "@/components/mdx/checklist";
 import { CodeBlock } from "@/components/mdx/code-block";
@@ -71,6 +73,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[0.88em] [overflow-wrap:anywhere]" {...props} />
       ),
     Callout,
+    Challenges,
     CheatSheet,
     Checklist,
     Cmd,
@@ -79,6 +82,8 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     DistroTabs,
     En,
     Exercise,
+    Feedback,
+    FinishProgress,
     Glossary,
     Kbd,
     MiniQuiz,

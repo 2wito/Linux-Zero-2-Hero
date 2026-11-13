@@ -1,0 +1,411 @@
+# Text Tools: grep, sed, awk and More
+
+<Callout type="info" title="What you'll learn">
+- Search for lines with `grep`, and understand basic **regular expressions**.
+- Count with `wc`, sort with `sort` and find duplicates with `uniq`.
+- Cut out columns with `cut` and replace characters with `tr`.
+- A gentle introduction to `sed` (search and replace) and `awk` (working with columns).
+- Connect it all into one pipeline that answers a real question.
+</Callout>
+
+## A carpenter's toolbox
+
+A carpenter doesn't have one machine that does everything. They have a saw, a drill, a file and a grinder, and each one does one thing, well.
+
+In Linux, a huge amount of information is **text**: logs, configuration files, CSV files, command output. The tools in this chapter are the toolbox for text, and with the pipe from the previous chapter you connect them.
+
+We'll work with two example files. A server log:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat server.log
+  2026-11-10 08:01 INFO web1 started
+  2026-11-10 08:05 WARN web2 disk 85% full
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:09 INFO web1 GET /home 200
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:15 error db1 connection refused
+  2026-11-10 08:20 INFO web1 GET /home 200
+`}</TerminalWindow>
+
+And a table of scores in CSV format (comma-separated values):
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat scores.csv
+  name,city,score
+  dana,haifa,92
+  yossi,tel-aviv,78
+  noa,haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+`}</TerminalWindow>
+
+<Callout type="tip" title="Want to follow along?">
+Create the files in the editor from chapter 7 (`nano server.log`), and paste the content from the examples.
+</Callout>
+
+## `grep`: find lines
+
+`grep` is a yellow highlighter: it goes through the file and returns only the lines containing what you searched for.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep ERROR server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+`}</TerminalWindow>
+
+Only two? The log also has `error` in lowercase. `grep` tells uppercase from lowercase, and `-i` (ignore case) turns that off:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -i error server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:15 error db1 connection refused
+  $ grep -c -i error server.log
+  3
+  $ grep -n WARN server.log
+  2:2026-11-10 08:05 WARN web2 disk 85% full
+  $ grep -v INFO server.log
+  2026-11-10 08:05 WARN web2 disk 85% full
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+| Option | What it does |
+| --- | --- |
+| `-i` | No difference between uppercase and lowercase |
+| `-c` | Only **counts** the matching lines |
+| `-n` | Adds the **line number** |
+| `-v` | The opposite: lines that don't match (invert) |
+| `-r` | Searches every file in a directory, all the way down (recursive) |
+
+`-r` is especially handy when you don't know which file something is hiding in:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -r "connection" .
+  ./server.log:2026-11-10 08:07 ERROR db1 connection refused
+  ./server.log:2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+## Regular expressions: searching by pattern
+
+Sometimes you're not looking for an exact word, but for a **pattern**: "a line that ends in 200", "a line that starts with a certain date". That's what **regular expressions** (regex) are for. These are the basic symbols:
+
+| Symbol | Meaning | Example |
+| --- | --- | --- |
+| `^` | Start of the line | `^2026` |
+| `$` | End of the line | `200$` |
+| `.` | Any one character | `w.b` matches web and also wob |
+| `*` | The previous character, 0 or more times | `.*` = "anything" |
+| `[abc]` | One of the characters in the brackets | `web[12]` |
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep "200$" server.log
+  2026-11-10 08:09 INFO web1 GET /home 200
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:20 INFO web1 GET /home 200
+  $ grep "^2026-11-10 08:1" server.log
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:15 error db1 connection refused
+  $ grep -i "error.*db1" server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+- `"200$"`: lines that **end** in 200, meaning requests that succeeded.
+- `"^2026-11-10 08:1"`: lines that start with 08:1, meaning between 08:10 and 08:19.
+- `"error.*db1"`: error, then anything, then db1.
+
+<Callout type="tip" title="Always in quotes">
+Put the pattern in quotes. Without quotes, the shell may interpret `*` and `$` itself, before `grep` ever sees them.
+</Callout>
+
+## `wc`: counting
+
+`wc` (word count) counts lines, words and characters:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ wc server.log
+    8  50 328 server.log
+  $ wc -l server.log
+  8 server.log
+`}</TerminalWindow>
+
+8 lines, 50 words and 328 bytes. Most of the time you just want `-l`, the number of lines.
+
+## `cut`: cutting out columns
+
+`cut` is a pair of scissors: it snips columns out of every line. `-d` is the character that separates columns (delimiter), and `-f` are the columns you want (fields):
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cut -d, -f1 scores.csv
+  name
+  dana
+  yossi
+  noa
+  avi
+  maya
+  $ cut -d, -f1,3 scores.csv
+  name,score
+  dana,92
+  yossi,78
+  noa,85
+  avi,64
+  maya,97
+`}</TerminalWindow>
+
+## `sort` and `uniq`: sorting and counting duplicates
+
+`sort` sorts lines. `uniq` merges identical lines **that sit next to each other**, and `uniq -c` also counts how many there were. Because of that "next to each other", you almost always run `sort` before `uniq`.
+
+Let's build a question step by step: **how many students are there from each city?**
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort
+  haifa
+  haifa
+  jerusalem
+  tel-aviv
+  tel-aviv
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort | uniq -c
+        2 haifa
+        1 jerusalem
+        2 tel-aviv
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort | uniq -c | sort -rn
+        2 tel-aviv
+        2 haifa
+        1 jerusalem
+`}</TerminalWindow>
+
+1. `cut -d, -f2`: just the city column.
+2. `tail -n +2`: skips the header line (shows from the second line on).
+3. `sort`: sorts, so identical cities sit next to each other.
+4. `uniq -c`: merges and counts.
+5. `sort -rn`: sorts by the number (`-n`, numeric), largest first (`-r`, reverse).
+
+For tables, `sort` can sort by a column: `-t` is the separator and `-k` is the column:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tail -n +2 scores.csv | sort -t, -k3 -rn | head -3
+  maya,tel-aviv,97
+  dana,haifa,92
+  noa,haifa,85
+`}</TerminalWindow>
+
+The top three scores, in one line.
+
+<Callout type="warning" title="sort without -n sorts like a dictionary">
+Without `-n`, `sort` compares characters, so `100` comes before `9` (because `1` is smaller than `9`). When sorting numbers, always use `-n`.
+</Callout>
+
+## `tr`: replacing characters
+
+`tr` (translate) replaces one character with another:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "hello linux" | tr a-z A-Z
+  HELLO LINUX
+  $ tr , ' ' < scores.csv
+  name city score
+  dana haifa 92
+  yossi tel-aviv 78
+  noa haifa 85
+  avi jerusalem 64
+  maya tel-aviv 97
+  $ echo "a   b    c" | tr -s " "
+  a b c
+`}</TerminalWindow>
+
+- `a-z A-Z`: every lowercase letter becomes uppercase.
+- `, ' '`: every comma becomes a space.
+- `-s` (squeeze): several spaces in a row become one space.
+
+`tr` only reads from stdin, so you feed it a file with `<` or `|`.
+
+## `sed`: search and replace
+
+`sed` (stream editor) is the terminal's "find and replace". Its most common command is `s/old/new/`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sed "s/haifa/Haifa/" scores.csv
+  name,city,score
+  dana,Haifa,92
+  yossi,tel-aviv,78
+  noa,Haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+  $ sed 's/,/ | /g' scores.csv
+  name | city | score
+  dana | haifa | 92
+  yossi | tel-aviv | 78
+  noa | haifa | 85
+  avi | jerusalem | 64
+  maya | tel-aviv | 97
+`}</TerminalWindow>
+
+- `s` = substitute. With nothing added, only the **first** occurrence on each line is replaced.
+- `g` at the end (global) = every occurrence on the line. Without it, only the first comma would be replaced.
+
+`sed` can also show or delete lines by number:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sed -n "2,3p" scores.csv
+  dana,haifa,92
+  yossi,tel-aviv,78
+  $ sed "1d" scores.csv
+  dana,haifa,92
+  yossi,tel-aviv,78
+  noa,haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+`}</TerminalWindow>
+
+`2,3p` prints lines 2–3, and `1d` deletes the first line.
+
+`sed` didn't change the file itself. It only showed the result. To change the file there's `-i` (in-place):
+
+<Callout type="warning" title="sed -i changes the file with no way back">
+`sed -i 's/a/b/g' file` writes the change straight into the file. Run it **without** `-i` first and check the output. For important files, keep a backup: `sed -i.bak 's/a/b/g' file` leaves the original copy as `file.bak`.
+</Callout>
+
+## `awk`: working with columns
+
+`awk` is almost a whole programming language, but 90% of its use is one thing: **pulling out columns**. It splits every line into fields by spaces, and calls them `$1`, `$2`, `$3` and so on:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk '{print $3}' server.log
+  INFO
+  WARN
+  ERROR
+  INFO
+  ERROR
+  INFO
+  error
+  INFO
+  $ awk '{print $3, $4}' server.log | sort | uniq -c
+        1 ERROR db1
+        1 ERROR web2
+        3 INFO web1
+        1 INFO web2
+        1 WARN web2
+        1 error db1
+`}</TerminalWindow>
+
+The advantage over `cut`: `awk` handles several spaces in a row nicely, and can do **conditions and calculations**. `-F,` tells it the separator is a comma:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk -F, 'NR > 1 && $3 > 80 {print $1}' scores.csv
+  dana
+  noa
+  maya
+  $ awk -F, 'NR > 1 {sum += $3} END {print sum / (NR - 1)}' scores.csv
+  83.2
+`}</TerminalWindow>
+
+- `NR` is the line number. `NR > 1` skips the header.
+- `$3 > 80 {print $1}`: if the score is above 80, print the name.
+- On the second line: add up all the scores into `sum`, and at the end (`END`) divide by the number of students. The average is 83.2.
+
+<Callout type="tip" title="Why NR > 1?">
+Without skipping the header, `awk` also compares the word `score` to 80. A comparison between a word and a number is done as a text comparison, and `name` would show up on the list of top students. Keep this in mind for any file with a header line.
+</Callout>
+
+## All together
+
+The question: **which message types are in the log, and how many of each?** Notice that `error` and `ERROR` need to be counted together:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk '{print $3}' server.log | tr a-z A-Z | sort | uniq -c | sort -rn
+        4 INFO
+        3 ERROR
+        1 WARN
+`}</TerminalWindow>
+
+Five stations: column 3 → uppercase → sort → count → sort by amount. That's the terminal's power: one line that answers a real question, on a file of 8 lines or of 8 million.
+
+<Exercise title="Investigating the log">
+Using `server.log`:
+
+1. Show all the lines for the `web2` server.
+2. Count how many `GET` requests there were.
+3. Show only the times (column 2) of all the errors, with no difference between `ERROR` and `error`.
+
+<Solution>
+
+```bash
+grep web2 server.log
+grep -c GET server.log
+grep -i error server.log | awk '{print $2}'
+```
+
+1. Three lines: WARN, ERROR and INFO.
+2. `3`.
+3. `08:07`, `08:10` and `08:15`. You can also do it without `awk`: `grep -i error server.log | cut -d' ' -f2`.
+</Solution>
+</Exercise>
+
+<Exercise title="Questions about the scores">
+Using `scores.csv`:
+
+1. Which students are from Haifa? (Names only.)
+2. Replace `tel-aviv` with `Tel Aviv` throughout the file, and show the result without changing the file.
+
+<Solution>
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -i "Haifa" scores.csv | cut -d, -f1
+  dana
+  noa
+`}</TerminalWindow>
+
+And for step 2: `sed 's/tel-aviv/Tel Aviv/g' scores.csv`. Without `-i`, the file itself doesn't change.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`grep` + regex", body: "Finds lines. `-i`, `-v`, `-c`, `-n`, `-r`, and patterns like `^`, `$` and `.*`." },
+    { title: "`sort` | `uniq -c`", body: "Sort, then count duplicates. `-n` for numbers, `-r` to reverse." },
+    { title: "`cut` / `tr`", body: "Cuts out columns by a separator. Replaces one character with another." },
+    { title: "`sed` / `awk`", body: "`s/old/new/g` to search and replace. `awk '{print $3}'` for columns and calculations." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "How do you find all the lines that **don't** contain the word DEBUG?",
+      options: [
+        { text: "`grep -c DEBUG`", why: "`-c` counts the lines that do contain it." },
+        { text: "`grep -v DEBUG`", why: "`-v` inverts the search." },
+        { text: "`grep -i DEBUG`", why: "`-i` ignores case, but still searches for the word." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "Why do you almost always run `sort` before `uniq`?",
+      options: [
+        { text: "Because `uniq` only merges identical lines that sit next to each other", why: "Sorting groups the identical lines together." },
+        { text: "Because `uniq` doesn't work on unsorted files at all", why: "It works, but it misses duplicates that aren't adjacent." },
+        { text: "To save time", why: "Sorting actually takes time. It's needed for correctness." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "What does `sed 's/cat/dog/' file` do?",
+      options: [
+        { text: "Changes the file and replaces every cat with dog", why: "Without `-i` the file doesn't change, and without `g` only the first occurrence on each line is replaced." },
+        { text: "Deletes every line with cat", why: "That takes `/cat/d`." },
+        { text: "Shows the file, with the first cat on each line replaced by dog", why: "The file itself doesn't change." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

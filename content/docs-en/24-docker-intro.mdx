@@ -1,0 +1,301 @@
+# Introduction to Docker
+
+<Callout type="info" title="What you'll learn">
+- What a **container** is, and how it differs from a virtual machine.
+- An **image** vs. a **container**.
+- The basic commands: `docker run`, `ps`, `images`, `logs`, `stop`, `rm`.
+- Write a first **Dockerfile** and build an image of your own.
+- Keep data outside the container with **volumes**.
+</Callout>
+
+## Containers at the port
+
+Before the shipping container was invented, every port loaded cargo its own way: sacks, barrels, crates of every size. It was slow, and things broke.
+
+The standard container changed everything: no matter what's inside, a container has the same size and the same hooks, and every ship, truck and crane knows how to handle it.
+
+**Docker** does this for software. A **container** packs a program **together with everything it needs**: the libraries, the versions and the settings. The container runs the same way on your computer, on a friend's computer and on a cloud server. No more "but it works on my machine".
+
+## Container vs. virtual machine
+
+In chapter 3 we met the virtual machine: a whole simulated computer, with its own operating system. A container is something much lighter:
+
+| | Virtual machine | Container |
+| --- | --- | --- |
+| What runs inside | A whole operating system, including a kernel | Just the program and its libraries |
+| The kernel | A separate kernel for each machine | **Uses the host computer's kernel** |
+| Startup time | Minutes | Seconds, sometimes less |
+| Size | Gigabytes | Usually tens to hundreds of megabytes |
+| Isolation | Very strong | Good, but less than a VM |
+
+Think of a building: a virtual machine is a separate **private house**, with its own foundations, plumbing and electricity. A container is an **apartment** in a shared building: it has its own door and lock, but the foundations and plumbing (the kernel) are shared. That's why containers are a **Linux** technology: they're built on Linux kernel features that keep processes apart.
+
+## Images and containers
+
+The two concepts it's most important not to confuse:
+
+- An **image** is a **frozen recipe**: a read-only template, with a filesystem and ready-made software. For example, `nginx` (a web server) or `python:3.12`.
+- A **container** is a **dish cooked** from the recipe: a running copy of an image. From the same image you can run ten containers in parallel.
+
+Images are downloaded from **Docker Hub**, a public library of ready-made images.
+
+## Installation
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+The recommended way is to follow the official instructions on Docker's site (docs.docker.com, under "Install Docker Engine on Ubuntu"), which add their official repository. There's also a package in Ubuntu's repository, which installs a slightly older version:
+
+```bash
+sudo apt install docker.io
+```
+
+</Distro>
+<Distro id="fedora">
+
+Install following the official instructions on Docker's site (docs.docker.com, under "Install Docker Engine on Fedora"), then:
+
+```bash
+sudo systemctl enable --now docker
+```
+
+Fedora also has **Podman** (`sudo dnf install podman`), a Docker replacement with the same commands (`podman run ...`).
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S docker
+sudo systemctl enable --now docker
+```
+
+</Distro>
+<Distro id="wsl">
+
+Install **Docker Desktop** on Windows, and in its settings turn on **Settings** → **Resources** → **WSL integration** for your distro. From then on, the `docker` command works from inside Ubuntu too.
+
+</Distro>
+<Distro id="macos">
+
+Install **Docker Desktop** for Mac. It runs a small Linux machine in the background, because containers need a Linux kernel.
+
+</Distro>
+</DistroTabs>
+
+On Linux, `docker` requires `sudo`. To work without it, add yourself to the `docker` group, and log in again:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+<Callout type="warning" title="The docker group = root privileges">
+Anyone in the `docker` group can run a container that mounts the computer's whole disk, and change anything on it. It's equivalent to `sudo` without a password. Only add users to the group whom you'd give `sudo` anyway.
+</Callout>
+
+Check that everything works:
+
+```bash
+docker run hello-world
+```
+
+Docker looks for the `hello-world` image on the computer, doesn't find it, **downloads** it from Docker Hub, runs a container from it, and the container prints a "Hello from Docker!" message that explains exactly these steps, then exits.
+
+## The first container that does something
+
+Let's run a web server, **nginx**, in the background:
+
+```bash
+docker run -d --name web -p 8080:80 nginx
+```
+
+| Part | Meaning |
+| --- | --- |
+| `run` | Create a container from an image and start it |
+| `-d` | In the background (detached), like `&` from chapter 11 |
+| `--name web` | A name for the container, so we don't have to remember its ID |
+| `-p 8080:80` | **Port**: whatever arrives at port 8080 on your computer is forwarded to port 80 inside the container |
+| `nginx` | The image |
+
+`-p` is the most confusing part: **computer:container**. Inside the container, nginx listens on port 80, but the container is isolated, and without `-p` you can't reach it from outside.
+
+Open `http://localhost:8080` in the browser (or, as in chapter 16, `curl http://localhost:8080`), and you'll see nginx's welcome page: "Welcome to nginx!".
+
+## The everyday commands
+
+```bash
+docker ps
+docker ps -a
+docker images
+docker logs web
+docker logs -f web
+docker exec -it web bash
+docker stop web
+docker start web
+docker rm web
+docker rmi nginx
+```
+
+| Command | What it does |
+| --- | --- |
+| `docker ps` | The containers **running** now: ID, image, ports and name |
+| `docker ps -a` | **All** containers, including stopped ones |
+| `docker images` | The images you've downloaded, and how much space they take |
+| `docker logs web` | The container's output (`-f` to follow, as in `journalctl -f`) |
+| `docker exec -it web bash` | Opens a terminal **inside** a running container. Exit with `exit` |
+| `docker stop` / `start` | Stops / starts it again |
+| `docker rm web` | Deletes a stopped container |
+| `docker rmi nginx` | Deletes an image |
+
+<Callout type="tip" title="A container is disposable">
+A container isn't meant to be "maintained" like a server. When you want a new version, you don't update the container: you **delete it and create a new one** from an updated image. So everything worth keeping must live **outside** the container, in a volume. We'll get to that right away.
+</Callout>
+
+## Dockerfile: your recipe
+
+A **Dockerfile** is a text file describing how to build an image, line by line. Let's build a small site. In a new directory, `my-site`, create two files:
+
+```html title="my-site/index.html"
+<h1>Hello from my container!</h1>
+```
+
+```dockerfile title="my-site/Dockerfile"
+FROM nginx:alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+```
+
+- **`FROM`**: the image you start from. `nginx:alpine` is nginx on **Alpine Linux**, a tiny distro (a few megabytes). `:alpine` is the **tag**, meaning the version.
+- **`COPY`**: copies a file from your computer into the image. The `/usr/share/nginx/html` directory is where nginx serves files from.
+- **`EXPOSE 80`**: documentation: the container listens on port 80. (To actually open it you still need `-p`.)
+
+Build and run:
+
+```bash
+cd my-site
+docker build -t my-site .
+docker run -d --name site -p 8081:80 my-site
+curl http://localhost:8081
+```
+
+- `build -t my-site .`: build an image named (tagged) `my-site`, from the Dockerfile **in the current directory** (`.`).
+- `curl` returns the HTML you wrote: `<h1>Hello from my container!</h1>`.
+
+Two more instructions you'll meet a lot:
+
+```dockerfile title="Dockerfile (a Python app)"
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]
+```
+
+- **`WORKDIR`**: like `cd` inside the image.
+- **`RUN`**: runs a command **at build time** (for example, installing libraries).
+- **`CMD`**: the command that runs **when the container starts**.
+
+## Volumes: data that survives
+
+When you delete a container, everything written inside it is **deleted with it**. That's fine for a web server, but a disaster for a database. A **volume** is a directory that sits **outside** the container and is mounted into it, like `mount` from chapter 21.
+
+There are two kinds:
+
+```bash
+docker volume create pgdata
+docker run -d --name db -e POSTGRES_PASSWORD=change-me -v pgdata:/var/lib/postgresql/data postgres:16
+
+docker run -d --name site2 -p 8082:80 -v "$PWD":/usr/share/nginx/html:ro nginx:alpine
+```
+
+1. **Named volume** (`pgdata:...`): Docker manages the location. Suits databases. Even if you delete the `db` container, the volume and its data remain, and a new container can carry on from the same point.
+2. **Bind mount** (`"$PWD":...`): a directory from your computer, directly. Suits development: you edit `index.html` on your computer, and the change shows up on the site immediately. `:ro` = read-only from inside the container.
+
+`-e` passes an **environment variable** to the container (chapter 15). That's how most images are configured, for example the database password.
+
+## Cleaning up
+
+Old images and containers pile up and take a lot of disk space:
+
+```bash
+docker system df
+docker container prune
+docker image prune
+```
+
+`system df` shows how much space Docker takes. `container prune` deletes all **stopped** containers, and `image prune` deletes unnamed images that no container uses.
+
+<Callout type="danger" title="docker system prune -a --volumes">
+This command deletes **every** image not in use right now, every stopped container, and **every volume** not attached to a running container. If your database is stopped at that moment, its data is deleted permanently. Before any `prune`, run `docker ps -a` and `docker volume ls` and make sure there's nothing there you need. And don't add `--volumes` unless you're 100% sure.
+</Callout>
+
+<Exercise title="A site in a container">
+1. Create a directory with your own `index.html`.
+2. Run nginx so the site is served from your directory (a read-only bind mount) on port 8090.
+3. Change `index.html`, and refresh the page. What happened?
+4. Stop and delete the container. Was `index.html` deleted?
+
+<Solution>
+
+```bash
+mkdir ~/mysite && cd ~/mysite
+echo "<h1>Version 1</h1>" > index.html
+docker run -d --name mysite -p 8090:80 -v "$PWD":/usr/share/nginx/html:ro nginx:alpine
+curl http://localhost:8090
+echo "<h1>Version 2</h1>" > index.html
+curl http://localhost:8090
+docker stop mysite
+docker rm mysite
+ls
+```
+
+3. The change shows up immediately, without rebuilding anything. The bind mount shows the container **your** file, not a copy of it.
+4. `index.html` is still there. Only the container was deleted. The file was always on your computer.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Container", body: "Software packed with all its dependencies. It shares the kernel with the computer, so it's light and fast." },
+    { title: "image ≠ container", body: "An image is the frozen recipe; a container is a running copy of it." },
+    { title: "`run -d -p --name`", body: "In the background, port mapping (computer:container), and a name. `ps`, `logs`, `exec`, `stop`, `rm`." },
+    { title: "Dockerfile + volumes", body: "`FROM`, `COPY`, `RUN`, `CMD` to build an image. Volumes for data that has to survive." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What's the main difference between a container and a virtual machine?",
+      options: [
+        { text: "A container uses the host computer's kernel, and a virtual machine runs its own kernel", why: "That's why containers are light and start in seconds." },
+        { text: "A container only works in the cloud", why: "Containers run on any Linux computer, including yours." },
+        { text: "There's no difference; they're two names for the same thing", why: "A VM simulates a whole computer. A container only isolates processes." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "You ran `docker run -d -p 3000:80 nginx`. At which address do you reach the site from your computer?",
+      options: [
+        { text: "`http://localhost:80`", why: "80 is the port **inside** the container. On your computer it's mapped to 3000." },
+        { text: "`http://localhost:3000`", why: "The order in `-p` is computer:container." },
+        { text: "`http://nginx:3000`", why: "`nginx` is the image's name, not an address." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You deleted a database container, and all the data disappeared. What would have prevented it?",
+      options: [
+        { text: "Running it with `sudo`", why: "Permissions have nothing to do with where the data is stored." },
+        { text: "`docker stop` instead of `docker rm`", why: "That only postpones the problem. Eventually you'll need to update and delete the container." },
+        { text: "A volume, which keeps the data outside the container", why: "A volume survives the container's deletion." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

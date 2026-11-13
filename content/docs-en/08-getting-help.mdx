@@ -1,0 +1,288 @@
+# Getting Help
+
+<Callout type="info" title="What you'll learn">
+- Get quick help from any command with `--help`.
+- Read the official manual with `man`, and search it.
+- Find the right command when you don't know what it's called.
+- Get ready-made examples with **tldr**.
+- Decode the common error messages.
+</Callout>
+
+## Nobody remembers everything
+
+Even people who've worked with Linux for twenty years don't remember every option of every command. The secret isn't remembering, it's **knowing where to look**.
+
+Think of a new appliance: it has a small sticker with basic instructions, a full instruction booklet in the box, and a friend who just shows you "press here". The terminal has all three:
+
+| Tool | Like... | When to use it |
+| --- | --- | --- |
+| `--help` | The sticker on the appliance | A quick reminder of the options |
+| `man` | The full instruction booklet | When you want to understand in depth |
+| `tldr` | A friend who shows you an example | When you just want an example that works |
+
+## Quick help: `--help`
+
+Almost every command accepts the `--help` option and prints a short summary of how to use it:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir --help
+  Usage: mkdir [OPTION]... DIRECTORY...
+  Create the DIRECTORY(ies), if they do not already exist.
+
+  Mandatory arguments to long options are mandatory for short options too.
+    -m, --mode=MODE   set file mode (as in chmod), not a=rwx - umask
+    -p, --parents     no error if existing, make parent directories as needed,
+                      with their file modes unaffected by any -m option.
+    -v, --verbose     print a message for each created directory
+    -Z                   set SELinux security context of each created directory
+                           to the default type
+        --context[=CTX]  like -Z, or if CTX is specified then set the SELinux
+                           or SMACK security context to CTX
+        --help        display this help and exit
+        --version     output version information and exit
+`}</TerminalWindow>
+
+How do you read it?
+
+- **`Usage`** shows the command's structure. Whatever is in square brackets `[ ]` is **optional**. Three dots `...` mean "you can give several". So: `mkdir`, optionally some options, and at least one directory.
+- **The options list**: each option's short form, long form, and an explanation. There's `-p`, which we met in chapter 6.
+
+<Callout type="warning" title="-h doesn't always mean help">
+In many commands `-h` means help, but not always. In `ls`, `-h` means "human-readable sizes" (remember `ls -lh`?). `--help` with two hyphens is the safe choice.
+</Callout>
+
+## The full manual: `man`
+
+`man` (manual) opens a command's **man page**: the official manual installed on the system. It opens in `less`, so all the keys from the previous chapter work here:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ man ls
+  LS(1)                            User Commands                           LS(1)
+
+  NAME
+         ls - list directory contents
+
+  SYNOPSIS
+         ls [OPTION]... [FILE]...
+
+  DESCRIPTION
+         List  information  about  the FILEs (the current directory by default).
+`}</TerminalWindow>
+
+Every man page has the same sections:
+
+| Section | What's in it |
+| --- | --- |
+| `NAME` | The command's name and a one-line description |
+| `SYNOPSIS` | The structure, like `Usage` in `--help` |
+| `DESCRIPTION` | A full explanation and all the options |
+| `EXAMPLES` | Examples (not on every page, but when they're there, they're gold) |
+
+**Search inside the page**: <Kbd>/</Kbd> followed by a word, for example `/size`, then <Kbd>n</Kbd> for the next match. **Quit**: <Kbd>q</Kbd>.
+
+<Callout type="tip" title="The (1) in the header">
+`LS(1)` says the page is in **section 1** of the manual: user commands. There are more sections, for example section 5 for configuration file formats. At first you don't need to think about it.
+</Callout>
+
+## Don't know what the command is called?
+
+`man -k` (also known as `apropos`) searches for a word in the descriptions of **all** commands. Handy when you know what you want to do, but not what the tool is called:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ man -k "list directory"
+  dir (1)              - list directory contents
+  ls (1)               - list directory contents
+  vdir (1)             - list directory contents
+`}</TerminalWindow>
+
+And the other way around, `whatis` gives the one-line description of a command you already know:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ whatis ls
+  ls (1)               - list directory contents
+`}</TerminalWindow>
+
+## Ready-made examples: tldr
+
+Man pages are precise, but long. **tldr** ("too long; didn't read") shows only the most useful examples. The pages are written by a community of volunteers.
+
+Here's how to install it:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo snap install tldr
+```
+
+<Callout type="warning" title="Why not apt?">
+Ubuntu 24.04's apt has a package called `tealdeer`, but its version is old and can't download the pages. So on Ubuntu it's better to install through `snap`, which is also the first option Ubuntu itself suggests.
+</Callout>
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install tealdeer
+tldr --update
+```
+
+`tealdeer` is a fast tldr program. `tldr --update` downloads all the pages once, and after that they're available offline too.
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S tealdeer
+tldr --update
+```
+
+`tealdeer` is a fast tldr program. `tldr --update` downloads all the pages once, and after that they're available offline too.
+
+</Distro>
+</DistroTabs>
+
+And now:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ tldr mkdir
+
+    mkdir
+
+    Create directories and set their permissions.
+    More information: https://www.gnu.org/software/coreutils/manual/html_node/mkdir-invocation.html.
+
+    - Create specific directories:
+      mkdir path/to/directory1 path/to/directory2 ...
+
+    - Create specific directories and their parents if needed:
+      mkdir -p path/to/directory1 path/to/directory2 ...
+`}</TerminalWindow>
+
+Each example is a description and a ready command. Replace parts like `path/to/directory1` with your own paths.
+
+<Callout type="tip" title="Without installing anything">
+The same pages are also available on tldr's official site: [tldr.inbrowser.app](https://tldr.inbrowser.app). Especially handy from your phone.
+</Callout>
+
+## What is this command, anyway?
+
+Sometimes you want to know **what** a command is: a separate program, a shortcut, or part of the shell itself. `type` answers that, and `which` shows where the program sits on disk:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ type cd
+  cd is a shell builtin
+  $ type ls
+  ls is aliased to \`ls --color=auto'
+  $ which ls
+  /usr/bin/ls
+`}</TerminalWindow>
+
+- `cd` is a **builtin** of the shell, not a separate program. That's why it has no man page of its own; you get help on it with `help cd`.
+- `ls` is an **alias**: when you type `ls`, the shell actually runs `ls --color=auto`. That's where the colors come from. We'll learn to create aliases in chapter 15.
+- `which` shows that the real program lives in `/usr/bin/ls`.
+
+## Reading error messages
+
+An error message isn't a failure, it's a **clue**. It almost always says exactly what the problem is. The four messages you'll meet most:
+
+| The message | What it says | What to check |
+| --- | --- | --- |
+| `command not found` | There's no command by that name | A typo? Uppercase letters? Maybe it needs to be installed |
+| `No such file or directory` | The file or directory doesn't exist at that path | `pwd` to see where you are, and `ls` to see what's there |
+| `Permission denied` | You don't have permission | Whose file is it? That's chapter 9 |
+| `Is a directory` | You treated a directory as a file | Maybe `-r` is missing, as in `rm -r` |
+
+The structure is always the same: **the command's name**, a colon, **what** it failed on, and **why**:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat recipe.txt
+  cat: recipe.txt: No such file or directory
+`}</TerminalWindow>
+
+Read it as: "`cat` tried to read `recipe.txt`, and the file doesn't exist". Maybe it's called `recipes.txt`? Maybe it's in another directory?
+
+<Callout type="danger" title="Don't copy commands blindly">
+When you search for a fix online, or ask an AI chatbot, you'll get lots of ready-made commands. Before you run one, and especially if it has `sudo` or `rm` in it, make sure you understand what it does. That's exactly what `--help` and `man` are for.
+</Callout>
+
+<Exercise title="Find the option yourself">
+`ls` can sort files by **size**, largest first. Use `man ls` to find the right option, then try it with `ls -l`.
+
+<Solution>
+Open `man ls`, press <Kbd>/</Kbd>, type `size` and press <Kbd>Enter</Kbd>. With <Kbd>n</Kbd> you'll get to the line:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ man ls
+         -S     sort by file size, largest first
+`}</TerminalWindow>
+
+Quit with <Kbd>q</Kbd> and try:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -lS
+`}</TerminalWindow>
+
+The largest file appears first. Notice that `S` is uppercase: lowercase `-s` does something completely different.
+</Solution>
+</Exercise>
+
+<Exercise title="Decode the error">
+What's wrong with each of these commands, and how do you fix it?
+
+1. `Ls`
+2. `cd /hmoe/dana`
+3. `rm photos` (when `photos` is a directory)
+
+<Solution>
+1. `Command 'Ls' not found`, and Ubuntu suggests `ls`. **Uppercase letter**: the command is `ls`.
+2. `No such file or directory`. **A typo**: `/home`, not `/hmoe`. With <Kbd>Tab</Kbd> this wouldn't have happened.
+3. `rm: cannot remove 'photos': Is a directory`. You need `rm -r photos`. And just before you do: are you sure you want to delete all the photos?
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`--help`", body: "A quick reminder. `[ ]` means optional, `...` means you can give several." },
+    { title: "`man`", body: "The full manual. `/` searches, `n` goes to the next match, `q` quits. `man -k` finds a command by topic." },
+    { title: "`tldr`", body: "Ready, useful examples, without reading a whole manual." },
+    { title: "Error messages", body: "Command: what: why. Read them; most of the time the fix is written right there." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You want a quick reminder of `cp`'s options. What's fastest?",
+      options: [
+        { text: "`cp --help`", why: "A short summary right in the terminal." },
+        { text: "`cp -h`", why: "`cp` has no `-h` for help, and in other commands `-h` can do something completely different. `--help` is safe." },
+        { text: "`help cp`", why: "`help` is for the shell's builtins, like `cd`. `cp` is a separate program." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "You need a command that changes a password, but don't know what it's called. What do you try?",
+      options: [
+        { text: "`man password`", why: "`man` needs the command's exact name. There's no command called `password`." },
+        { text: "`man -k password`", why: "It searches for the word in every command's description, and will find `passwd`." },
+        { text: "`whatis password`", why: "`whatis` describes a command whose name you already know. It doesn't search by topic." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "What does the message `cat: notes.txt: No such file or directory` say?",
+      options: [
+        { text: "The `cat` command isn't installed", why: "If `cat` didn't exist, you'd get `command not found`." },
+        { text: "You don't have permission to read the file", why: "That has a different message: `Permission denied`." },
+        { text: "There's no file by that name where `cat` looked", why: "Check the name, and check where you are with `pwd`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

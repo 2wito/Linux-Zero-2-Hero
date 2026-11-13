@@ -1,0 +1,277 @@
+# Compression and Archives
+
+<Callout type="info" title="What you'll learn">
+- The difference between an **archive** (packing many files into one) and **compression** (making things smaller).
+- `tar`: create (`c`), extract (`x`) and list contents (`t`), with compression (`z`, `J`).
+- `gzip` and `gunzip` for a single file.
+- `zip` and `unzip`, for people who use Windows.
+- A table: which format and which flag to choose.
+</Callout>
+
+## A suitcase and a vacuum bag
+
+When you go on vacation you do two different things:
+
+1. You **pack** all your clothes into **one suitcase**, so it's easy to carry. That's an **archive**: many files and directories inside a single file.
+2. You put the clothes in a **vacuum bag**, so they take less space. That's **compression**: the same information, in fewer bytes.
+
+In Linux these are two separate tools that work together: `tar` packs, and `gzip` or `xz` compress. That's why the familiar `.tar.gz` extension is really "a suitcase in a vacuum bag".
+
+## `tar`: packing the suitcase
+
+`tar` (tape archive, from the days when backups went to magnetic tape) works with letters that form a "sentence":
+
+| Letter | Meaning |
+| --- | --- |
+| `c` | Create |
+| `x` | Extract |
+| `t` | List the contents |
+| `f` | The archive **file**. Always last, right before the name |
+| `v` | Show each file as it works (verbose) |
+| `z` | Compress with gzip |
+| `J` | Compress with xz |
+
+The directory we'll pack:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ du -sh project
+  164K	project
+  $ tar -cvf project.tar project
+  project/
+  project/docs/
+  project/docs/services.txt
+  project/docs/notes.txt
+  project/src/
+  project/src/data.csv
+  project/src/main.py
+  $ ls -lh project.tar
+  -rw-r--r-- 1 dana dana 150K Nov 11 21:05 project.tar
+`}</TerminalWindow>
+
+`-cvf`: create, show each file, into the file `project.tar`. And after the name, **what** to pack. (`du -sh` shows how much space a directory takes. We'll meet it in chapter 21.)
+
+Notice: `project.tar` is almost the same size as the directory. `tar` on its own only **packs**; it doesn't compress.
+
+### What's in the suitcase? `t`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -tf project.tar
+  project/
+  project/docs/
+  project/docs/services.txt
+  project/docs/notes.txt
+  project/src/
+  project/src/data.csv
+  project/src/main.py
+`}</TerminalWindow>
+
+It's always worth peeking into an archive before opening it, especially one you downloaded from the internet.
+
+## Adding compression: `z` and `J`
+
+The same command, with one more letter:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -czf project.tar.gz project
+  $ tar -cJf project.tar.xz project
+  $ ls -lh project.tar*
+  -rw-r--r-- 1 dana dana 150K Nov 11 21:05 project.tar
+  -rw-r--r-- 1 dana dana  51K Nov 11 21:06 project.tar.gz
+  -rw-r--r-- 1 dana dana  11K Nov 11 21:06 project.tar.xz
+`}</TerminalWindow>
+
+- `z` (gzip): from 150K to 51K. Fast, and supported everywhere.
+- `J` (xz): down to 11K. Compresses much more, but takes longer.
+
+How much it compresses depends on the content: repetitive text compresses beautifully, while images or videos (already compressed) barely shrink.
+
+## Extracting: `x`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ mkdir restore
+  $ tar -xzf project.tar.gz -C restore
+  $ ls -R restore
+  restore:
+  project
+
+  restore/project:
+  docs  src
+
+  restore/project/docs:
+  notes.txt  services.txt
+
+  restore/project/src:
+  data.csv  main.py
+`}</TerminalWindow>
+
+- `-xzf`: extract, from gzip, from the file `project.tar.gz`.
+- `-C restore` (uppercase!): extract into the `restore` directory instead of the current one.
+- `ls -R` (recursive) shows every directory, all the way down.
+
+<Callout type="warning" title="Extracting overwrites existing files">
+If the directory already has files with the same names as in the archive, `tar -x` **replaces them silently**. So: peek first with `tar -tf`, and extract into a new, empty directory with `-C`. An archive from an unknown source might also scatter hundreds of files straight into the current directory.
+</Callout>
+
+### Full details, and a single file only
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -tzvf project.tar.gz
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/docs/
+  -rw-r--r-- dana/dana     12813 2026-11-11 21:05 project/docs/services.txt
+  -rw-r--r-- dana/dana     21492 2026-11-11 21:05 project/docs/notes.txt
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/src/
+  -rw-r--r-- dana/dana    108894 2026-11-11 21:05 project/src/data.csv
+  -rw-r--r-- dana/dana        12 2026-11-11 21:05 project/src/main.py
+  $ mkdir one
+  $ tar -xzf project.tar.gz -C one project/src/main.py
+`}</TerminalWindow>
+
+`v` together with `t` shows permissions, owners and sizes, like `ls -l`. And if you write a file name at the end of the command, `tar` extracts only that file.
+
+<Callout type="tip" title="Modern tar can skip z when extracting">
+When extracting, `tar -xf` detects by itself whether the file is compressed with gzip or xz. When creating, you have to tell it explicitly (`z` or `J`).
+</Callout>
+
+## `gzip`: for a single file
+
+`gzip` compresses **one file**, and replaces it with the compressed version:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls -lh data.csv
+  -rw-r--r-- 1 dana dana 107K Nov 11 21:06 data.csv
+  $ gzip data.csv
+  $ ls -lh data.csv*
+  -rw-r--r-- 1 dana dana 44K Nov 11 21:06 data.csv.gz
+  $ gunzip data.csv.gz
+  $ ls data.csv*
+  data.csv
+  $ gzip -k data.csv
+  $ ls data.csv*
+  data.csv  data.csv.gz
+  $ zcat data.csv.gz | head -3
+  1
+  2
+  3
+`}</TerminalWindow>
+
+- After `gzip`, the original file **disappears** and there's a `.gz` in its place. `gunzip` does the opposite.
+- `-k` (keep) keeps the original too.
+- `zcat` shows a compressed file's contents without decompressing it. That's how you read old logs, which the system compresses automatically (we'll see this in chapter 20).
+
+## `zip` and `unzip`
+
+`.zip` is the Windows and macOS format. When you send files to someone who doesn't use Linux, it's the right choice. Here one tool both packs and compresses:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ zip -r project.zip project
+    adding: project/ (stored 0%)
+    adding: project/docs/ (stored 0%)
+    adding: project/docs/services.txt (deflated 58%)
+    adding: project/docs/notes.txt (deflated 95%)
+    adding: project/src/ (stored 0%)
+    adding: project/src/data.csv (deflated 59%)
+    adding: project/src/main.py (stored 0%)
+  $ unzip -l project.zip
+  Archive:  project.zip
+    Length      Date    Time    Name
+  ---------  ---------- -----   ----
+          0  2026-11-11 21:05   project/
+          0  2026-11-11 21:05   project/docs/
+      12813  2026-11-11 21:05   project/docs/services.txt
+      21492  2026-11-11 21:05   project/docs/notes.txt
+          0  2026-11-11 21:05   project/src/
+     108894  2026-11-11 21:05   project/src/data.csv
+         12  2026-11-11 21:05   project/src/main.py
+  ---------                     -------
+     143211                     7 files
+  $ mkdir unz
+  $ unzip -q project.zip -d unz
+  $ ls unz/project
+  docs  src
+`}</TerminalWindow>
+
+- `zip -r` (recursive): the archive name first, then what to pack. `deflated 95%` means the file shrank by 95%.
+- `unzip -l` (list) shows the contents, `-d` chooses a destination directory and `-q` (quiet) silences the output.
+
+If `zip` isn't installed, install it as in chapter 10: `sudo apt install zip unzip`.
+
+## Which format to choose?
+
+| Situation | Command | Why |
+| --- | --- | --- |
+| Backup or transfer between Linux machines | `tar -czf x.tar.gz dir` | Fast, keeps permissions and owners |
+| A file that needs to be as small as possible | `tar -cJf x.tar.xz dir` | The strongest compression |
+| Sending to someone on Windows | `zip -r x.zip dir` | Opens with a double-click on any system |
+| A single file, like a big log | `gzip -k file` | Simple and fast |
+| Open a `.tar.gz` / `.tgz` | `tar -xzf x.tar.gz` | |
+| Open a `.tar.xz` | `tar -xJf x.tar.xz` | |
+| Open a `.zip` | `unzip x.zip -d dir` | |
+
+<Callout type="tip" title="How to remember tar">
+**c**reate a **z**ipped **f**ile = `czf`. e**x**tract **z**ipped **f**ile = `xzf`. **t**able of contents = `tf`.
+</Callout>
+
+<Exercise title="Backing up your home directory">
+1. Create a gzip-compressed archive of `~/projects` (or any other directory of yours), with a name that includes the date: `backup-2026-11-11.tar.gz`.
+2. Check what's inside, without extracting.
+3. Extract it into a new directory called `~/restore-test`.
+
+<Solution>
+
+```bash
+tar -czf backup-2026-11-11.tar.gz ~/projects
+tar -tzf backup-2026-11-11.tar.gz
+mkdir ~/restore-test
+tar -xzf backup-2026-11-11.tar.gz -C ~/restore-test
+```
+
+When you give `tar` a full path like `/home/dana/projects`, it strips the leading `/` and prints a message about it starting with `tar: Removing leading`. That's not an error. It means extraction always happens **inside** the destination directory, and never overwrites the original. In chapter 18 we'll turn this backup into a script, with an automatic date.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Archive ≠ compression", body: "`tar` packs many files into one. `gzip`/`xz` make things smaller. `.tar.gz` = both." },
+    { title: "`tar -czf` / `-xzf` / `-tf`", body: "Create, extract and list. `-C` extracts into another directory." },
+    { title: "`gzip` / `gunzip` / `zcat`", body: "Compress a single file, decompress it, and read it without decompressing." },
+    { title: "`zip` / `unzip`", body: "The format everyone knows, for Windows and Mac users." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "How do you open `site.tar.gz` into the `out` directory?",
+      options: [
+        { text: "`tar -czf site.tar.gz -C out`", why: "`c` creates a new archive. Extracting needs `x`." },
+        { text: "`tar -xzf site.tar.gz -C out`", why: "Extract, gzip, file, and `-C` for the destination directory." },
+        { text: "`unzip site.tar.gz -d out`", why: "`unzip` only opens `.zip` files." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "What happens to `log.txt` after `gzip log.txt`?",
+      options: [
+        { text: "It's replaced by `log.txt.gz`, and the original disappears", why: "To keep the original too, use `gzip -k`." },
+        { text: "A `log.txt.gz` is created next to it, and the original stays", why: "Only with `-k`." },
+        { text: "It's packed into `log.tar`", why: "`gzip` doesn't create an archive. It only compresses one file." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "You need to send a directory to a friend who uses Windows. What fits best?",
+      options: [
+        { text: "`tar -cJf`", why: "Windows can't always open `.tar.xz` with a double-click." },
+        { text: "`gzip -r`", why: "`gzip` compresses each file separately, and doesn't pack them into one file." },
+        { text: "`zip -r`", why: "`.zip` opens on every operating system with no extra software." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

@@ -1,0 +1,304 @@
+# Environment Variables and Shell Settings
+
+<Callout type="info" title="What you'll learn">
+- What a **variable** is, and the difference between a regular variable and an **environment variable**.
+- `echo $VAR`, `export`, `env` and `unset`.
+- How the shell finds commands: **`PATH`**.
+- Set up shortcuts with `alias`.
+- Save settings for good in `~/.bashrc`, and how it differs from `~/.profile`.
+</Callout>
+
+## Notes on the fridge
+
+Every home has notes on the fridge: the babysitter's phone number, the alarm code, what to buy at the supermarket. Anyone who walks into the kitchen can glance at them.
+
+A shell **variable** is a note like that: a **name** and a **value**. **Environment variables** are the notes the shell passes on to every program it starts, so programs know, for example, who the user is and where their home directory is.
+
+## Reading variables: `$`
+
+To read a variable, put `$` before its name:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ echo $HOME
+  /home/dana
+  $ echo $USER
+  dana
+  $ echo "I am $USER and my home is $HOME"
+  I am dana and my home is /home/dana
+`}</TerminalWindow>
+
+The shell replaces `$HOME` with its value **before** running the command. It works inside double quotes `"..."` too. (Not inside single quotes `'...'`: there everything stays exactly as you wrote it.)
+
+Common environment variables:
+
+| Variable | What's in it |
+| --- | --- |
+| `HOME` | Your home directory. `~` is a shortcut for it |
+| `USER` | The username |
+| `SHELL` | Your shell, usually `/bin/bash` |
+| `PWD` | The current directory |
+| `PATH` | Where to look for commands (more on this soon) |
+| `LANG` | Language and the format of dates and numbers |
+
+You can see all of them with `env` (or `printenv`). The list is long, so it's worth filtering:
+
+```bash
+env | grep HOME
+```
+
+## Creating a variable
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ COLOR=blue
+  $ echo $COLOR
+  blue
+`}</TerminalWindow>
+
+<Callout type="warning" title="No spaces around =">
+`COLOR = blue` (with spaces) doesn't create a variable. The shell thinks `COLOR` is a command and that `=` and `blue` are arguments, and you get `COLOR: command not found`. Write `COLOR=blue`, with no spaces.
+</Callout>
+
+Environment variable names are usually written in uppercase. And if the value has a space, use quotes: `NAME="Dana Cohen"`.
+
+## `export`: passing the note on
+
+Here comes the important difference. The script `show.sh` prints the value of `COLOR`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ./show.sh
+  COLOR is:
+  $ export COLOR
+  $ ./show.sh
+  COLOR is: blue
+`}</TerminalWindow>
+
+The first time, the script saw nothing! A regular variable exists **only in the current shell**. Like a note in your pocket: you know what it says, but whoever you send to the store can't see it.
+
+`export` sticks the note on the fridge: from now on, every program the shell starts gets it. A variable that went through `export` is an **environment variable**. You can also do it in one step: `export COLOR=blue`.
+
+### For one command only, and deleting
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ COLOR=red ./show.sh
+  COLOR is: red
+  $ echo $COLOR
+  blue
+  $ unset COLOR
+  $ echo "[$COLOR]"
+  []
+`}</TerminalWindow>
+
+- `COLOR=red ./show.sh`: the value `red` applies **only** to this command. Afterwards, `COLOR` is still `blue`.
+- `unset` deletes the variable. A variable that doesn't exist is simply empty, so the brackets are empty.
+
+## `PATH`: where commands live
+
+When you type `ls`, how does the shell know to run `/usr/bin/ls`? It searches a list of directories, in order. That list is `PATH`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ echo $PATH
+  /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+  $ echo $PATH | tr : "\\n"
+  /usr/local/sbin
+  /usr/local/bin
+  /usr/sbin
+  /usr/bin
+  /sbin
+  /bin
+  /usr/games
+  /usr/local/games
+  /snap/bin
+`}</TerminalWindow>
+
+The directories are separated by colons. With `tr` from chapter 13 we turned every `:` into a new line, which is easier to read. On WSL you'll also see Windows directories at the end (starting with `/mnt/c/`). That's how you can run Windows programs from inside Linux.
+
+### Why do you need `./`?
+
+Now we can understand something we saw in chapter 9. The current directory is **not** in `PATH`. So to run a program that's right here, you have to say explicitly "from here": `./`.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ hello-tool
+  hello-tool: command not found
+  $ ./hello-tool
+  hello from my tool
+`}</TerminalWindow>
+
+It's not a bug, it's security: if the current directory were in `PATH`, someone could leave a file called `ls` in a shared directory and get you to run it.
+
+### Adding a directory to `PATH`
+
+Want your own tools to work from anywhere? Put them in one directory and add it to `PATH`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ mkdir ~/tools
+  $ mv hello-tool ~/tools/
+  $ export PATH="$PATH:$HOME/tools"
+  $ hello-tool
+  hello from my tool
+  $ which hello-tool
+  /home/dana/tools/hello-tool
+`}</TerminalWindow>
+
+`"$PATH:$HOME/tools"` means: "the existing value, a colon, and the new directory".
+
+<Callout type="warning" title="Don't overwrite PATH">
+`export PATH=$HOME/tools` (without `$PATH:` at the start) **replaces** the whole list. Suddenly `ls`, `cat` and the other commands "disappear", because the shell no longer knows where to look for them. If this happens to you, don't worry: close the terminal and open a new one, and everything comes back.
+</Callout>
+
+## `alias`: shortcuts
+
+An **alias** is a nickname: a short name for a long command. Like calling "Jonathan" just "Jon":
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ alias ll='ls -alF'
+  $ alias ll
+  alias ll='ls -alF'
+  $ type ll
+  ll is aliased to \`ls -alF'
+`}</TerminalWindow>
+
+Now `ll` runs `ls -alF`. A few useful aliases:
+
+```bash
+alias ..='cd ..'
+alias update='sudo apt update && sudo apt upgrade'
+alias rm='rm -i'
+```
+
+The last one makes `rm` ask before every deletion. `unalias ll` deletes an alias.
+
+## Saving for good: `~/.bashrc`
+
+The problem: everything we've done so far (variables, `export`, `alias`) **disappears** when you close the terminal. To make it stick, you write it in a file the shell reads every time it starts: **`~/.bashrc`**.
+
+On Ubuntu it already has a few ready-made aliases:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ grep -n 'alias' ~/.bashrc | head -9
+  75:# enable color support of ls and also add handy aliases
+  78:    alias ls='ls --color=auto'
+  79:    #alias dir='dir --color=auto'
+  80:    #alias vdir='vdir --color=auto'
+  82:    alias grep='grep --color=auto'
+  83:    alias fgrep='fgrep --color=auto'
+  84:    alias egrep='egrep --color=auto'
+  90:# some more ls aliases
+  91:alias ll='ls -alF'
+`}</TerminalWindow>
+
+So `ll` already works for you, and `ls`'s colors come from here too. (Lines starting with `#` are comments, which the shell skips.)
+
+To add something of your own, open the file in an editor and add lines **at the end**:
+
+```bash
+nano ~/.bashrc
+```
+
+```bash title="~/.bashrc (end of the file)"
+# my settings
+export PATH="$PATH:$HOME/tools"
+alias ..='cd ..'
+```
+
+Save, then reload the file so the change takes effect without opening a new terminal:
+
+```bash
+source ~/.bashrc
+```
+
+<Callout type="warning" title="Back up before editing">
+A mistake in `~/.bashrc` (such as an overwritten `PATH`) shows up in every new terminal. Before your first edit, keep a copy: `cp ~/.bashrc ~/.bashrc.backup`. If something goes wrong, `cp ~/.bashrc.backup ~/.bashrc` restores it.
+</Callout>
+
+### `~/.bashrc` vs. `~/.profile`
+
+| File | When it's read | What goes in it |
+| --- | --- | --- |
+| `~/.bashrc` | Every time an interactive terminal opens | Aliases, the prompt, variables for your own use |
+| `~/.profile` | Once, at login | Environment variables the whole system needs, like `PATH` |
+
+On Ubuntu, `~/.profile` already adds `~/bin` and `~/.local/bin` to `PATH` **if they exist**. So if you create a directory called `~/bin` and log in again, everything inside it works from anywhere. For everyday use, `~/.bashrc` is the right place in most cases.
+
+## History: a few more tricks
+
+We already met <Kbd>↑</Kbd> and `history` in chapter 4. On Ubuntu, `~/.bashrc` keeps the last 1,000 commands (`HISTSIZE=1000`). A few more useful shortcuts:
+
+| Shortcut | What it does |
+| --- | --- |
+| <Kbd keys="Ctrl+R" /> | Search the history: type part of an old command, and <Kbd>Enter</Kbd> runs it |
+| `!!` | The previous command. Most useful: `sudo !!` when you forgot `sudo` |
+| `!42` | Command number 42 from `history` |
+| <Kbd keys="Ctrl+A" /> / <Kbd keys="Ctrl+E" /> | Jump to the start of the line / the end of the line |
+| <Kbd keys="Ctrl+U" /> | Delete from the cursor to the start of the line |
+
+<Exercise title="A personal environment">
+1. Create a variable `CITY` with the name of your city, and print a sentence that uses it.
+2. Make sure a script (or `bash -c 'echo $CITY'`) can see it.
+3. Add an alias called `now` that runs `date` to `~/.bashrc`, reload and check.
+
+<Solution>
+
+```bash
+CITY=haifa
+echo "I live in $CITY"
+export CITY
+bash -c 'echo $CITY'
+```
+
+`bash -c` starts a new shell, like any other program. Without `export` it won't see `CITY`. (The single quotes matter: they stop your own shell from replacing `$CITY` itself.)
+
+For step 3, add the line `alias now='date'` at the end of `~/.bashrc`, then:
+
+```bash
+source ~/.bashrc
+now
+```
+
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`$VAR` / `VAR=x`", body: "Reading and creating a variable. No spaces around `=`." },
+    { title: "`export`", body: "Turns a variable into an environment variable that every started program gets." },
+    { title: "`PATH`", body: "The list of directories where the shell looks for commands. Add to it with `$PATH:` at the start." },
+    { title: "`alias` + `~/.bashrc`", body: "Shortcuts, and the file that keeps settings for good. `source` reloads it." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You set `COLOR=blue`, but a script you ran doesn't see the value. What's missing?",
+      options: [
+        { text: "`export COLOR`", why: "Without export, the variable exists only in the current shell." },
+        { text: "`sudo`", why: "There's no permissions problem here." },
+        { text: "Spaces around the `=`", why: "Spaces would actually break the assignment." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "Why do you need `./script.sh` and not just `script.sh`?",
+      options: [
+        { text: "Because scripts don't have execute permission", why: "`chmod +x` gives that permission. It's a different problem." },
+        { text: "Because the current directory isn't in `PATH`", why: "And that's on purpose, for security reasons." },
+        { text: "Because `.sh` is a special file type", why: "The extension means nothing special to Linux." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You added an alias to `~/.bashrc`, but it doesn't work in the open terminal. What do you do?",
+      options: [
+        { text: "Restart the computer", why: "No need. Reloading the file is enough." },
+        { text: "Run `export ~/.bashrc`", why: "`export` is for variables, not files." },
+        { text: "`source ~/.bashrc`, or open a new terminal", why: "The file is only read when the shell starts, or when you load it explicitly." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

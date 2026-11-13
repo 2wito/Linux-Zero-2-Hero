@@ -1,0 +1,292 @@
+# Working with Files and Directories
+
+<Callout type="info" title="What you'll learn">
+- Create directories with `mkdir` and empty files with `touch`.
+- Copy with `cp`, move and rename with `mv`.
+- Delete with `rm` and `rmdir`, **without deleting by mistake**.
+- Work on many files at once with **wildcards** (`*` and `?`).
+- Deal with names that contain spaces.
+</Callout>
+
+## A desk with drawers
+
+In the previous chapter we learned to **walk around** the building. Now we'll learn to **organize** it.
+
+Think of a desk with drawers: you open a new drawer, put a page in it, make a copy, move a document from drawer to drawer, and throw out what you don't need. Those are exactly the five commands in this chapter.
+
+To avoid touching important files, we'll work in the home directory and build everything there from scratch.
+
+## Create a directory: `mkdir`
+
+`mkdir` (make directory) creates a new directory:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir projects
+  $ mkdir projects
+  mkdir: cannot create directory ‘projects’: File exists
+`}</TerminalWindow>
+
+The first time, the directory was created, quietly. The second time we got an error, because it already exists (File exists).
+
+### Several levels at once: `-p`
+
+Want to create `projects/website/css`, but `website` doesn't exist yet? The `-p` (parents) option creates the whole path:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir -p projects/website/css
+  $ ls projects
+  website
+  $ ls projects/website
+  css
+`}</TerminalWindow>
+
+Bonus: with `-p`, `mkdir` doesn't complain if the directory already exists.
+
+## Create an empty file: `touch`
+
+`touch` creates an empty file. You can give it several names at once:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ touch notes.txt ideas.txt
+  $ ls
+  ideas.txt  notes.txt  projects
+`}</TerminalWindow>
+
+If the file already exists, `touch` doesn't erase it. It just updates its modification time ("touches" it, hence the name).
+
+## Copy: `cp`
+
+`cp` (copy) copies: **source** first, **destination** second.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cp notes.txt notes-backup.txt
+  $ ls
+  ideas.txt  notes-backup.txt  notes.txt  projects
+`}</TerminalWindow>
+
+### Copy a whole directory: `-r`
+
+A directory is like a drawer with lots of pages. To copy it with everything inside, you need `-r` (recursive, "including everything inside"):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cp projects projects-backup
+  cp: -r not specified; omitting directory 'projects'
+  $ cp -r projects projects-backup
+  $ ls
+  ideas.txt  notes-backup.txt  notes.txt  projects  projects-backup
+`}</TerminalWindow>
+
+Without `-r`, `cp` refuses and explains why: "you didn't specify `-r`, so I skipped the directory".
+
+<Callout type="warning" title="cp overwrites silently">
+If the destination already exists, `cp` **overwrites** it without asking. Want it to ask first? Add `-i` (interactive): `cp -i notes.txt notes-backup.txt`.
+</Callout>
+
+## Move and rename: `mv`
+
+`mv` (move) does two things, and it's the same idea: **changing where a file is**.
+
+**Moving to another directory**: when the destination is a directory, the file moves into it.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mv ideas.txt projects/
+  $ ls projects
+  ideas.txt  website
+`}</TerminalWindow>
+
+**Renaming**: when the destination is a new name in the same directory, the file simply gets a new name. Linux has no separate `rename` command for this.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mv notes-backup.txt old-notes.txt
+  $ ls
+  notes.txt  old-notes.txt  projects  projects-backup
+`}</TerminalWindow>
+
+`mv` also overwrites existing files without asking, and it also has `-i`.
+
+## Delete: `rm` and `rmdir`
+
+`rm` (remove) deletes files. For directories you need `-r`, just like with `cp`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ rm old-notes.txt
+  $ rm projects-backup
+  rm: cannot remove 'projects-backup': Is a directory
+  $ rm -r projects-backup
+  $ ls
+  notes.txt  projects
+`}</TerminalWindow>
+
+<Callout type="danger" title="There's no recycle bin in the terminal">
+What `rm` deletes is **gone for good**. There's no "recycle bin" and no "undo". Before every `rm`, and especially `rm -r`, read the command again.
+
+Never run `rm -rf` on something you're not sure about. The `-f` (force) means "don't ask and don't complain", and together with `-r` it's a very powerful and very dangerous tool.
+</Callout>
+
+### A safety net: `rm -i`
+
+`-i` makes `rm` ask about every file. Answer `y` (yes) or `n` (no):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ rm -i notes.txt
+  rm: remove regular empty file 'notes.txt'? n
+`}</TerminalWindow>
+
+We answered `n`, so the file stays.
+
+### Delete an empty directory: `rmdir`
+
+`rmdir` deletes a directory **only if it's empty**. It's a safe option, because it won't delete contents by mistake:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir empty
+  $ rmdir empty
+  $ rmdir projects
+  rmdir: failed to remove 'projects': Directory not empty
+`}</TerminalWindow>
+
+## Many files at once: wildcards
+
+Say you have dozens of photos and want to move them all into a directory. You don't need to type every name. **Wildcards** are like a joker in a deck of cards: they match anything.
+
+| Character | Matches... | Example | What it catches |
+| --- | --- | --- | --- |
+| `*` | Any run of characters, even an empty one | `*.jpg` | Every file ending in `.jpg` |
+| `?` | Exactly one character | `photo?.jpg` | `photo1.jpg`, but not `photo10.jpg` |
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ touch photo1.jpg photo2.jpg photo10.jpg report.pdf
+  $ ls
+  notes.txt  photo1.jpg  photo10.jpg  photo2.jpg  projects  report.pdf
+  $ ls *.jpg
+  photo1.jpg  photo10.jpg  photo2.jpg
+  $ ls photo?.jpg
+  photo1.jpg  photo2.jpg
+`}</TerminalWindow>
+
+And now we tidy up all the photos in one command:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir photos
+  $ mv *.jpg photos/
+  $ ls
+  notes.txt  photos  projects  report.pdf
+  $ ls photos
+  photo1.jpg  photo10.jpg  photo2.jpg
+`}</TerminalWindow>
+
+<Callout type="tip" title="ls first, rm second">
+Before deleting with a wildcard, run the same pattern with `ls`. For example `ls *.tmp`, and only after you've checked what will be deleted, `rm *.tmp`. That way you see exactly what gets caught.
+</Callout>
+
+## Names with spaces
+
+The shell splits words by spaces, so `my files` looks to it like **two** names. The fix: quotes.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir "my files"
+  $ ls
+  'my files'  notes.txt  photos  projects  report.pdf
+  $ cd my files
+  bash: cd: too many arguments
+  $ cd "my files"
+`}</TerminalWindow>
+
+- `ls` shows the name in quotes, to make clear it's a single name.
+- `cd my files` failed: the shell got two arguments, `my` and `files`.
+- With quotes it works. <Kbd>Tab</Kbd> also knows how to complete names like this correctly.
+
+The simplest option? Don't use spaces in names. It's common to write `my-files` or `my_files`.
+
+## Practice: tidy up the desk
+
+In the simulator you can delete without worry: the files are fake, and the reset button brings everything back. Try `rm` on a directory without `-r` too, and see what happens.
+
+<TerminalSimulator mission="files-dirs" />
+
+<Exercise title="Build a project structure">
+Create the following structure in your home directory, then check it:
+
+- A `blog` directory with two directories inside: `posts` and `images`.
+- Inside `posts`, two empty files: `hello.md` and `about.md`.
+
+Then copy all of `blog` to a backup called `blog-backup`.
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir -p blog/posts blog/images
+  $ touch blog/posts/hello.md blog/posts/about.md
+  $ ls blog
+  images  posts
+  $ ls blog/posts
+  about.md  hello.md
+  $ cp -r blog blog-backup
+`}</TerminalWindow>
+
+- `mkdir -p` takes several paths at once, and creates `blog` along the way.
+- `touch` takes paths, not just names, so there's no need to go into `posts` first.
+- `cp -r` because we're copying a directory.
+</Solution>
+</Exercise>
+
+<Exercise title="Tidy up a downloads directory">
+The directory holds the files `song1.mp3`, `song2.mp3`, `cv.pdf`, `invoice.pdf` and `notes.txt`. Move all the songs into a `music` directory and all the PDFs into a `documents` directory, in as few commands as possible.
+
+<Solution>
+<TerminalWindow title="~/downloads" user="dana@ubuntu">{`
+  $ mkdir music documents
+  $ mv *.mp3 music/
+  $ mv *.pdf documents/
+  $ ls
+  documents  music  notes.txt
+`}</TerminalWindow>
+
+`mkdir` creates two directories in one command, and two wildcards move all the files. It doesn't matter whether there are 2 songs or 2,000.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`mkdir -p` and `touch`", body: "Create directories (several levels too) and empty files." },
+    { title: "`cp -r` and `mv`", body: "`cp` copies (`-r` for directories). `mv` moves and also renames." },
+    { title: "`rm` with care", body: "There's no recycle bin. `-i` asks before deleting, and `rmdir` only deletes an empty directory." },
+    { title: "`*` and `?`", body: "`*` for any run of characters, `?` for exactly one. Check with `ls` first." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "How do you rename `draft.txt` to `final.txt`?",
+      options: [
+        { text: "`cp draft.txt final.txt`", why: "That creates a copy with the new name, but `draft.txt` stays." },
+        { text: "`mv draft.txt final.txt`", why: "With `mv`, a destination that's a new name simply renames the file." },
+        { text: "`rename draft.txt`", why: "No separate command is needed. In Linux you rename with `mv`." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "Which command deletes a directory only if it's empty?",
+      options: [
+        { text: "`rmdir`", why: "If there's anything in the directory, it refuses, and that's what makes it safe." },
+        { text: "`rm -r`", why: "`rm -r` deletes a directory with all its contents, empty or not." },
+        { text: "`rm -f`", why: "`-f` only turns off questions and warnings. Without `-r` it doesn't delete directories at all." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "A directory holds `a.txt`, `ab.txt` and `abc.txt`. What does `ls a?.txt` show?",
+      options: [
+        { text: "All three", why: "`?` matches **exactly** one character, not any length." },
+        { text: "Only `a.txt`", why: "In `a.txt` there's no character between the `a` and the dot, and `?` requires exactly one." },
+        { text: "Only `ab.txt`", why: "Only `ab.txt` has exactly one character (`b`) between `a` and `.txt`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

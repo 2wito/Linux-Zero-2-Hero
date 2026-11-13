@@ -1,0 +1,157 @@
+# Distros: Which Linux to Choose
+
+<Callout type="info" title="What you'll learn">
+- What a **distribution** is, and why there are so many of them.
+- The difference between the big families: Debian, Red Hat and Arch.
+- What **LTS** and **rolling release** mean.
+- Which distro this guide uses, and how to check which distro you're on.
+</Callout>
+
+## One engine, many cars
+
+In the previous chapter we saw that, strictly speaking, Linux is a **kernel**: the engine.
+
+Now imagine an excellent engine handed out for free to every car maker in the world. One builds a comfortable family car around it. Another builds a rugged off-roader. And someone builds a kit for people who like to assemble things themselves.
+
+That's exactly what a **distribution** (or **distro**) is: a complete system that someone built around the Linux kernel. Every distro has:
+
+- The **kernel** itself.
+- **Basic tools**: the terminal and the commands.
+- A **package manager**: an "app store" you install software from. We'll get to know it in depth in chapter 10.
+- A **desktop environment**: the windows, menus and look.
+- **Preinstalled programs**: a browser, a document editor and so on.
+
+<Callout type="tip" title="The good news">
+Almost everything you learn in this guide works on **every** distro. The terminal, files, permissions and scripts are the same. The main difference is the command for installing software, and in those places we'll show a tab for each distro.
+</Callout>
+
+## The three big families
+
+Most distros belong to one of three "families". Distros in the same family use the same package manager and behave alike.
+
+| Family | Well-known distros | Package manager | Good for |
+| --- | --- | --- | --- |
+| Debian | Ubuntu, Linux Mint, Debian | `apt` | Beginners, servers, most tutorials online |
+| Red Hat | Fedora, RHEL, Rocky Linux | `dnf` | Developers, companies, anyone who wants up-to-date software |
+| Arch | Arch Linux, Manjaro | `pacman` | People who like to build and understand every part |
+
+### Distros worth knowing
+
+- **Ubuntu**: the most popular distro for beginners. It has the most tutorials and answers online.
+- **Linux Mint**: based on Ubuntu, with a look that resembles Windows. Comfortable for people coming from Windows.
+- **Debian**: Ubuntu's "mother". Very stable and common on servers.
+- **Fedora**: up to date, clean and a favorite of many developers.
+- **Arch Linux**: minimal. You install only what you need and learn a ton along the way. Less suited as a first distro.
+
+## Stability vs. novelty: LTS and rolling
+
+Distros update in two main ways.
+
+**Fixed releases.** Like Ubuntu and Fedora: a numbered version comes out and receives fixes and security updates. On Ubuntu, a version marked **LTS** (Long-Term Support) comes out every two years and is supported for at least five years. That's the choice for anyone who wants a system that just works.
+
+**Rolling release.** Like Arch: there are no "versions". The system keeps updating to the newest software all the time. You get the latest of everything, but sometimes an update breaks something and you have to fix it.
+
+<Callout type="info" title="What this guide uses">
+The examples in this guide were written on **Ubuntu 24.04 LTS**. If you have a different distro, almost everything works the same, and wherever there's a difference you'll find tabs like the ones later in this chapter.
+</Callout>
+
+## The desktop: how the system looks
+
+A **desktop environment** is the graphical interface. The same distro can look completely different depending on which one you pick:
+
+- **GNOME**: clean and modern. The default on Ubuntu and Fedora.
+- **KDE Plasma**: very flexible, with lots of settings. Resembles Windows.
+- **Cinnamon**: simple and familiar. The default on Linux Mint.
+
+In this guide we'll work mostly **in the terminal**, so the desktop doesn't really matter. Servers don't have a graphical interface at all, just a terminal.
+
+## How do you know which distro you're on?
+
+Every modern distro has a small file called `/etc/os-release` that describes it. The `cat` command shows a file's contents (we'll meet it in chapter 7):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat /etc/os-release
+  PRETTY_NAME="Ubuntu 24.04.3 LTS"
+  NAME="Ubuntu"
+  VERSION_ID="24.04"
+  VERSION="24.04.3 LTS (Noble Numbat)"
+  VERSION_CODENAME=noble
+  ID=ubuntu
+  ID_LIKE=debian
+  HOME_URL="https://www.ubuntu.com/"
+  SUPPORT_URL="https://help.ubuntu.com/"
+  BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+  PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+  UBUNTU_CODENAME=noble
+  LOGO=ubuntu-logo
+`}</TerminalWindow>
+
+You don't need to understand every line. Notice three of them:
+
+- `PRETTY_NAME`: the full name and version, in human language.
+- `ID`: the distro's short name (`ubuntu`).
+- `ID_LIKE`: which family it belongs to. Here it's `debian`, meaning Ubuntu is part of the Debian family.
+
+On Fedora you'll see `ID=fedora`, and on Arch you'll see `ID=arch`.
+
+<Exercise title="Pick a distro for everyone">
+Which distro would you recommend to each of these people?
+
+1. Your mom, who wants a simple computer that looks like Windows.
+2. A friend setting up a server for their business website who wants peace and quiet for years.
+3. A developer who wants the latest software versions, but without building everything herself.
+
+<Solution>
+1. **Linux Mint**: a familiar, comfortable look, and based on stable Ubuntu.
+2. **Ubuntu LTS** or **Debian**: stability and security updates for years.
+3. **Fedora**: up-to-date software with an easy install.
+
+There's no single "wrong" answer here. All these distros are good; it's mostly a matter of preference.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Distribution (distro)", body: "A complete system around the Linux kernel: tools, a package manager, a desktop and programs." },
+    { title: "Three families", body: "Debian (`apt`), Red Hat (`dnf`) and Arch (`pacman`)." },
+    { title: "LTS vs. rolling", body: "LTS gives you stability for years. Rolling always gives you the newest." },
+    { title: "`/etc/os-release`", body: "The file that tells you which distro and version you're on." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What's the difference between Linux and a distro?",
+      options: [
+        { text: "There's no difference; they're two names for the same thing", why: "There is a difference: Linux is the kernel, and a distro is a complete system built around it." },
+        { text: "Linux is the kernel, and a distro is a complete system built around it", why: "Exactly. The engine vs. the complete car." },
+        { text: "A distro is a paid version of Linux", why: "Most distros are completely free." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "Which family does Ubuntu belong to?",
+      options: [
+        { text: "Arch", why: "Arch is a separate family that uses `pacman`." },
+        { text: "Red Hat", why: "Red Hat is the family of Fedora and RHEL, which use `dnf`." },
+        { text: "Debian", why: "That's why Ubuntu's `/etc/os-release` says `ID_LIKE=debian`, and it uses `apt`." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "What characterizes an LTS release?",
+      options: [
+        { text: "It gets security updates for several years", why: "Long-Term Support." },
+        { text: "It's always the newest", why: "The opposite: LTS prefers stability over novelty." },
+        { text: "It has no graphical interface", why: "Ubuntu LTS has a full graphical interface. LTS is about support, not looks." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

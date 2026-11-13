@@ -1,0 +1,274 @@
+# Disks and Storage
+
+<Callout type="info" title="What you'll learn">
+- How much free space there is: `df -h`.
+- What's taking up the space: `du -sh`.
+- Which disks and partitions there are: `lsblk`.
+- What a **filesystem** is, and what **mount** means.
+- A first look at `/etc/fstab`.
+- Why `dd` and `mkfs` are the commands that deserve the most respect.
+</Callout>
+
+## Cabinets, shelves and drawers
+
+Think of a storeroom:
+
+- The **disk** is the cabinet itself, the hardware.
+- A **partition** is a shelf in the cabinet. One cabinet can be divided into several shelves, for different uses.
+- A **filesystem** is how the shelf is organized: drawers, labels and a catalog that let you find things. Without it, the shelf is just a pile.
+- **Mounting** connects a shelf to the directory tree, so you can reach it through a path.
+
+In chapter 5 we saw that Linux has **one tree**, starting at `/`. There's no `C:` and `D:` like on Windows. Every disk or partition connects to that tree at some point, and looks like just another directory.
+
+## How much free space? `df`
+
+`df` (disk free) shows how much space each mounted filesystem has. `-h` (human) shows sizes like `7.6G` instead of byte counts:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ df -h /
+  Filesystem      Size  Used Avail Use% Mounted on
+  /dev/sdd       1007G  7.6G  949G   1% /
+`}</TerminalWindow>
+
+| Column | Meaning |
+| --- | --- |
+| `Filesystem` | Where it comes from (the disk or partition) |
+| `Size` / `Used` / `Avail` | Total size, used, and free |
+| `Use%` | How full it is. **Above 90% you need to deal with it** |
+| `Mounted on` | Where it's connected to the tree |
+
+Without a path, `df -h` shows **every** filesystem. The list is long, because some are virtual (like `tmpfs`, which lives in memory). `-T` adds the filesystem's **type**:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ df -hT / /mnt/c
+  Filesystem     Type  Size  Used Avail Use% Mounted on
+  /dev/sdd       ext4 1007G  7.6G  949G   1% /
+  C:\\            9p    953G  238G  715G  25% /mnt/c
+`}</TerminalWindow>
+
+On WSL you can see both worlds here: Linux sits on an `ext4` disk, and the Windows `C:` drive is mounted at `/mnt/c`, through a bridge called `9p`.
+
+### Filesystem types
+
+| Type | Where you'll meet it |
+| --- | --- |
+| `ext4` | The default on most Linux distros. Stable and proven |
+| `btrfs` | The default on Fedora. Supports snapshots |
+| `xfs` | Common on servers, in RHEL |
+| `vfat` / `exfat` | USB drives and memory cards. Every operating system reads them |
+| `ntfs` | Windows disks |
+| `tmpfs` | A "disk" in memory. Wiped on every restart |
+
+## What's taking up the space? `du`
+
+`df` says **how much** space is used. `du` (disk usage) says **who** is using it:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ du -sh proj
+  54M	proj
+  $ du -sh proj/*
+  580K	proj/code
+  3.1M	proj/docs
+  51M	proj/videos
+  $ du -sh proj/* | sort -rh
+  51M	proj/videos
+  3.1M	proj/docs
+  580K	proj/code
+`}</TerminalWindow>
+
+- `-s` (summary): one total per path, rather than a line per subdirectory.
+- `proj/*`: each directory separately. That's how you find the "culprit".
+- `sort -rh`: sort by human-readable size (`-h` knows `51M` is bigger than `580K`), largest first.
+
+This combination, `du -sh * | sort -rh`, is the first tool to reach for when the disk fills up. Run it, go into the biggest directory, and run it again, until you find the file.
+
+On a big directory, `--max-depth=1` limits it to one level:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ du -h --max-depth=1 /usr 2>/dev/null | sort -rh | head -5
+  6.2G	/usr
+  5.1G	/usr/lib
+  769M	/usr/share
+  160M	/usr/bin
+  105M	/usr/libexec
+`}</TerminalWindow>
+
+<Callout type="tip" title="Where to look first when the disk is full">
+The usual suspects: logs that grew (`/var/log`, and see chapter 20), files you downloaded (`~/Downloads`), the package manager's cache (`sudo apt clean` clears it safely), and old Docker images (chapter 24). And `find / -size +1G 2>/dev/null` from chapter 14 finds the especially large files.
+</Callout>
+
+## Which disks are there? `lsblk`
+
+`lsblk` (list block devices) shows all the disks and partitions, as a tree:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ lsblk
+  NAME MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+  sda    8:0    0 388.4M  1 disk
+  sdb    8:16   0   186M  1 disk
+  sdc    8:32   0     2G  0 disk [SWAP]
+  sdd    8:48   0     1T  0 disk /snap
+                                 /mnt/wslg/distro
+                                 /
+`}</TerminalWindow>
+
+- **`NAME`**: the device name. Its file lives in `/dev` (for example `/dev/sdd`). Remember that "everything is a file"?
+- **`SIZE`**: the size.
+- **`TYPE`**: `disk` is a whole disk, and `part` is a partition.
+- **`MOUNTPOINTS`**: where it's mounted. `[SWAP]` is **swap space**: disk space the system uses when RAM runs out.
+
+On WSL the layout is especially simple: all the "disks" are virtual, with no partitions. On a regular Linux machine you'll see something like `nvme0n1` (a fast SSD) or `sda` (a SATA or USB disk), with partitions under them: `nvme0n1p1`, `nvme0n1p2` or `sda1`, `sda2`. Usually there's a small partition for booting (mounted at `/boot/efi`) and a big one for `/`.
+
+`lsblk -f` adds the filesystem type and the **UUID**: a unique ID for each partition, which doesn't change even if the device name does.
+
+## Mounting: `mount` and `umount`
+
+When you plug a USB drive into a Linux computer with a desktop, it's mounted **automatically** (usually under `/media/dana/`). On a server, or when you want to control the location, you mount it manually.
+
+To see what's mounted where:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ findmnt /
+  TARGET SOURCE   FSTYPE OPTIONS
+  /      /dev/sdd ext4   rw,relatime,discard,errors=remount-ro,data=ordered
+`}</TerminalWindow>
+
+`rw` = read and write. `errors=remount-ro` = if there's a disk error, switch to read-only so no more data gets damaged.
+
+Here's how to mount and unmount a USB drive (say it's `sdb1`, according to `lsblk`):
+
+```bash
+sudo mkdir -p /mnt/usb
+sudo mount /dev/sdb1 /mnt/usb
+ls /mnt/usb
+sudo umount /mnt/usb
+```
+
+1. Create an empty directory, the **mount point**.
+2. `mount` connects the partition to the directory. From now on, what's inside `/mnt/usb` is the disk's content.
+3. `umount` (no n!) disconnects it. **Always** do it before physically removing the drive, so all the data finishes writing to it.
+
+Mounting requires root privileges:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ umount /mnt/c
+  umount: /mnt/c: must be superuser to unmount.
+`}</TerminalWindow>
+
+<Callout type="warning" title="target is busy">
+If `umount` answers `target is busy`, something is still using the disk. Usually it's **you**: a terminal sitting inside the directory (`cd ~` fixes it), or a file open in an editor. Don't pull the drive out anyway: files that haven't finished writing can get corrupted.
+</Callout>
+
+## `/etc/fstab`: what to mount at boot
+
+`/etc/fstab` (filesystem table) is the list of what to mount automatically on every boot. On WSL it's almost empty, because WSL mounts everything by itself:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat /etc/fstab
+  # UNCONFIGURED FSTAB FOR BASE SYSTEM
+`}</TerminalWindow>
+
+On a regular Linux machine you'll see lines like these. Each line is one partition, with six columns:
+
+```text title="/etc/fstab"
+# <device>                                 <mount point>  <type>  <options>          <dump> <pass>
+UUID=c138e3db-5d38-456d-b15c-7ee8817106a1  /              ext4    errors=remount-ro  0      1
+UUID=4ddacc49-d363-4594-aff3-29b0c556582d  none           swap    sw                 0      0
+```
+
+| Column | In the example | Meaning |
+| --- | --- | --- |
+| device | `UUID=...` | Which partition. A UUID is better than `/dev/sda1`, because it doesn't change |
+| mount point | `/` | Where to mount it |
+| type | `ext4` | The filesystem type |
+| options | `errors=remount-ro` | Options. `defaults` fits most cases |
+| dump / pass | `0 1` | Old-style backup (always 0), and the check order at boot |
+
+<Callout type="danger" title="A mistake in fstab = a computer that won't boot">
+A wrong line in `/etc/fstab` (a bad UUID, a wrong type) can stop the boot in emergency mode. Before editing: back up (`sudo cp /etc/fstab /etc/fstab.bak`). After editing, **before** restarting: `sudo mount -a` tries to mount everything in the file, and shows the error now, while it's still easy to fix. And for an external disk, add the `nofail` option, so the computer boots even when it isn't connected.
+</Callout>
+
+## The commands that wipe disks: `mkfs` and `dd`
+
+There are two commands with no "undo", worth knowing mostly so you respect them:
+
+- **`mkfs`** (make filesystem) **formats** a partition: it creates a new, empty filesystem on it. Everything that was on it is erased. For example, `sudo mkfs.ext4 /dev/sdb1`.
+- **`dd`** copies raw bytes from place to place. It's used, for example, to write a Linux ISO file to a USB drive: `sudo dd if=ubuntu.iso of=/dev/sdb bs=4M status=progress`. `if` is the source (input file) and `of` is the destination (output file).
+
+<Callout type="danger" title="dd and mkfs: check the disk name three times">
+`dd` with the wrong `of=`, or `mkfs` on the wrong partition, **wipes the whole disk**, immediately and without asking. There's no recycle bin and no `Ctrl+Z`. That's why `dd` earned the nickname "disk destroyer". Before every use:
+
+1. Run `lsblk` **before** plugging in the external disk, and **after**. The new name that appeared is its name.
+2. Check that the size in `lsblk` matches the disk you're holding in your hand.
+3. Make sure there's nothing on it you need.
+
+And if you just want to write an ISO, a graphical program like **balenaEtcher** or **GNOME Disks** is safer: it shows only external disks.
+</Callout>
+
+<Exercise title="Who ate my disk?">
+1. How much free space is on the partition your home directory is on?
+2. How big is your home directory?
+3. What are the three largest directories (or files) directly inside it? Include hidden files and directories too.
+4. What's the filesystem type of `/`?
+
+<Solution>
+
+```bash
+df -h ~
+du -sh ~
+du -sh ~/* ~/.[!.]* 2>/dev/null | sort -rh | head -3
+df -hT /
+```
+
+1. `df -h ~` shows only the filesystem that the path `~` is on. Look at the `Avail` column.
+2. `du -sh ~`.
+3. `~/.[!.]*` are the hidden files (those starting with a dot), without `.` and `..`. Usually `.cache` is one of the biggest.
+4. The `Type` column. On most distros it's `ext4`, and on Fedora `btrfs`.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`df -h`", body: "How much free space each filesystem has. Above 90% = deal with it." },
+    { title: "`du -sh * | sort -rh`", body: "Who's taking up the space, largest first." },
+    { title: "`lsblk` / `mount`", body: "Which disks and partitions there are, and where they connect to the tree. `umount` before disconnecting." },
+    { title: "`fstab`, `dd`, `mkfs`", body: "Mounting at boot (`mount -a` to test). And dd/mkfs wipe disks: check three times." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What's the difference between `df` and `du`?",
+      options: [
+        { text: "`df` says how much free space each filesystem has, and `du` how much space specific files and directories take", why: "disk free vs. disk usage." },
+        { text: "There's no difference; they're two names for the same command", why: "They answer different questions." },
+        { text: "`df` only works on external disks", why: "`df` works on any mounted filesystem." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "`umount /mnt/usb` answers `target is busy`. What's the likely reason?",
+      options: [
+        { text: "The disk is broken", why: "The error says something is using it, not that it's damaged." },
+        { text: "You need to unplug it physically first", why: "The opposite: unplug it physically only after umount succeeds." },
+        { text: "A terminal or program is still using it, for example a terminal sitting inside the directory", why: "`cd ~` and closing open files solve most cases." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "You want to write an ISO to a USB drive with `dd`. What's the most important step?",
+      options: [
+        { text: "Use `bs=4M` so it's fast", why: "That only affects speed. The danger is in choosing the destination." },
+        { text: "Make sure with `lsblk` that `of=` is exactly the external disk", why: "A wrong destination wipes the wrong disk, for example the system disk." },
+        { text: "Run it without sudo, to be safe", why: "Without sudo there's no permission to write to the disk at all. Safety comes from checking the destination." },
+      ],
+      answer: 1,
+    },
+  ]}
+/>

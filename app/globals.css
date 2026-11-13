@@ -4,7 +4,7 @@
 
 /* Amber accent (amber-phosphor terminal), warm stone surfaces, green as the secondary "ok" color.
    Token names follow the reference project; --sun became --ok because amber is now the accent. */
-/* .light / .dark can also scope a single element (used by /docs/playground to show both themes). */
+/* .light / .dark can also scope a single element, to show one theme inside the other. */
 :root,
 .light {
   --bg: #f4f1ea;

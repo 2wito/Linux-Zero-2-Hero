@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SquareTerminal } from "lucide-react";
 import { docHref, homeHref, switchLocalePath, type Locale } from "@/lib/i18n";
-import { AUTHOR, FEEDBACK_EMAIL, hasFeedbackEmail } from "@/lib/site";
+import { AUTHOR, FEEDBACK_EMAIL, hasFeedbackEmail, NEW_ISSUE_URL } from "@/lib/site";
 import { chapters, chapterText, levels, levelStats } from "@/lib/syllabus";
 import { ui } from "@/lib/ui";
 
@@ -30,7 +30,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
       title: f.project,
       links: [
         { href: `${home}#about`, label: f.about },
-        ...(hasFeedbackEmail() ? [{ href: `mailto:${FEEDBACK_EMAIL}`, label: f.feedback }] : []),
+        { href: hasFeedbackEmail() ? `mailto:${FEEDBACK_EMAIL}` : NEW_ISSUE_URL, label: f.feedback },
         { href: switchLocalePath(home, other), label: t.language.label, lang: other },
       ],
     },

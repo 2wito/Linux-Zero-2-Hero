@@ -1,0 +1,288 @@
+# Pipes and Redirection
+
+<Callout type="info" title="What you'll learn">
+- Where a command's output goes: **stdout**, **stderr** and **stdin**.
+- Save output to a file with `>` and `>>`, and read input from a file with `<`.
+- Separate errors with `2>` and merge them with `2>&1`.
+- Connect commands with `|`, and split output with `tee`.
+- Linux's big idea: small tools that connect together.
+</Callout>
+
+## Plumbing at home
+
+Think of water plumbing. Every tap has an **inlet** and two **outlets**: a regular outlet, and a drain pipe for faults.
+
+That's exactly how every Linux command works. It has three "pipes" (streams):
+
+| Pipe | Number | Name | Usually connected to... |
+| --- | --- | --- | --- |
+| **stdin** | 0 | Standard input | The keyboard |
+| **stdout** | 1 | Standard output | The screen |
+| **stderr** | 2 | Error output | The screen too |
+
+In this chapter we'll learn to **connect the pipes somewhere else**: to a file, or to another command.
+
+## `>`: save output to a file
+
+`>` redirects stdout to a file instead of the screen:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "milk" > shopping.txt
+  $ cat shopping.txt
+  milk
+  $ echo "bread" > shopping.txt
+  $ cat shopping.txt
+  bread
+`}</TerminalWindow>
+
+Notice: the "milk" is gone. `>` **overwrites** the file: it empties it before writing.
+
+## `>>`: append to the end
+
+`>>` appends to the end of the file without erasing what's in it:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "eggs" >> shopping.txt
+  $ echo "cheese" >> shopping.txt
+  $ cat shopping.txt
+  bread
+  eggs
+  cheese
+`}</TerminalWindow>
+
+<Callout type="warning" title="One > erases, two >> append">
+A one-character mistake, `>` instead of `>>`, erases all the existing content with no warning and no recycle bin. Before pressing Enter on a command with `>`, check that it really is the file you want to overwrite.
+</Callout>
+
+## `<`: read input from a file
+
+`<` is the opposite direction: it feeds a file into the command's stdin. `wc -l` counts lines:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ wc -l < shopping.txt
+  3
+  $ wc -l shopping.txt
+  3 shopping.txt
+`}</TerminalWindow>
+
+The difference is small: when you give a file name, `wc` knows its name and prints it. With `<` it only gets the contents.
+
+## Errors: `2>`
+
+Let's ask `ls` for a file that exists and a file that doesn't, and send the output to a file:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  shopping.txt
+  $ ls shopping.txt nosuch.txt > out.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  $ cat out.txt
+  shopping.txt
+`}</TerminalWindow>
+
+The error still showed up on the screen! Because `>` only redirects **stdout** (pipe 1). The error came out on **stderr** (pipe 2). To redirect it, write its number:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt 2> errors.txt
+  shopping.txt
+  $ cat errors.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+`}</TerminalWindow>
+
+### Everything to the same place: `2>&1`
+
+Want output and errors in the same file? `2>&1` means "send pipe 2 wherever pipe 1 is going":
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt > all.txt 2>&1
+  $ cat all.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  shopping.txt
+`}</TerminalWindow>
+
+<Callout type="tip" title="Order matters">
+First `> all.txt`, then `2>&1`. If you reverse the order, stderr is sent to wherever stdout is going **at that moment**, which is the screen. Bash also has a shortcut: `&> all.txt` sends both.
+</Callout>
+
+### The black hole: `/dev/null`
+
+`/dev/null` is a special "file" that swallows everything you send to it. Use it when you want to silence output:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls nosuch.txt 2> /dev/null
+`}</TerminalWindow>
+
+The error was swallowed, and nothing appeared.
+
+## `|`: the pipe
+
+So far we connected a command to a file. The **pipe**, the `|` character, connects a command **to a command**: the first one's stdout goes into the second one's stdin.
+
+Think of an assembly line: each station does one thing and passes the result on to the next station.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls /etc | wc -l
+  184
+  $ ls /etc | head -4
+  ImageMagick-6
+  PackageKit
+  X11
+  adduser.conf
+  $ ls /usr/bin | grep "^gz"
+  gzexe
+  gzip
+`}</TerminalWindow>
+
+- `ls /etc | wc -l`: how many files are in `/etc`? `ls` outputs a list, `wc -l` counts lines.
+- `ls /etc | head -4`: only the first 4 lines.
+- `ls /usr/bin | grep "^gz"`: out of thousands of commands, only those that start with `gz`. (`grep` filters lines; we'll get to know it in depth in the next chapter.)
+
+You can chain as many pipes as you like:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat shopping.txt | sort
+  bread
+  cheese
+  eggs
+`}</TerminalWindow>
+
+### The Unix philosophy
+
+This is the big idea behind Linux: **every tool does one thing, does it well, and speaks text**. There's no single command that knows how to "count the files in etc that start with a". There's `ls`, `grep` and `wc`, and you connect them. Like Lego bricks: a few simple pieces, endless combinations.
+
+## `tee`: to the screen and to a file
+
+`tee` is named after a T-junction in plumbing: it splits the stream. What goes in comes out **both** to the screen (or the next command) **and** to a file:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "milk" | tee -a shopping.txt
+  milk
+  $ cat shopping.txt
+  bread
+  eggs
+  cheese
+  milk
+  $ sort shopping.txt | uniq | tee list.txt | wc -l
+  4
+  $ cat list.txt
+  bread
+  cheese
+  eggs
+  milk
+`}</TerminalWindow>
+
+- `-a` (append) adds to the end of the file, like `>>`. Without `-a`, `tee` overwrites like `>`.
+- On the third command, `tee` saved the sorted list in `list.txt` and, at the same time, passed it on to `wc`.
+
+<Callout type="tip" title="tee and sudo">
+`sudo echo "x" > /etc/file` doesn't work, because the `>` redirection is done by your own shell, without root privileges. The usual way: `echo "x" | sudo tee -a /etc/file`. We'll see this again in later chapters.
+</Callout>
+
+## The trap: reading and writing the same file
+
+Say you want to sort a file "in place". The natural attempt:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sort shopping.txt > shopping.txt
+  $ cat shopping.txt
+  $ wc -c shopping.txt
+  0 shopping.txt
+`}</TerminalWindow>
+
+The file is **empty**! The shell sets up the `>` redirection (and empties the file) **before** `sort` starts reading. By the time `sort` opens it, there's nothing left.
+
+<Callout type="warning" title="Never > to the same file you're reading from">
+Write to a new file and then swap: `sort shopping.txt > sorted.txt && mv sorted.txt shopping.txt`. (`sort` also has a built-in option: `sort -o shopping.txt shopping.txt`.)
+</Callout>
+
+## Summary table
+
+| Symbol | What it does |
+| --- | --- |
+| `>` | stdout to a file (overwrites) |
+| `>>` | stdout to the end of a file |
+| `<` | A file to stdin |
+| `2>` | stderr to a file |
+| `2>&1` | stderr to the same place as stdout |
+| `&>` | stdout and stderr together to a file |
+| `\|` | One command's stdout to the next one's stdin |
+| `tee` | To the screen and to a file |
+
+<Exercise title="An assembly line">
+1. Save the list of files in `/etc` to a file called `etc-list.txt`.
+2. Append the list of files in `/var` to the end of the same file.
+3. Count how many lines the file has, without its name being printed.
+4. Run `ls /etc /nosuch` so that the error is swallowed and the output appears on the screen.
+
+<Solution>
+
+```bash
+ls /etc > etc-list.txt
+ls /var >> etc-list.txt
+wc -l < etc-list.txt
+ls /etc /nosuch 2> /dev/null
+```
+
+In step 2, `>>` and not `>`, otherwise the `/etc` list would be erased. In step 3, `<` passes only the contents, so `wc` doesn't know the file's name.
+</Solution>
+</Exercise>
+
+<Exercise title="How many zip commands do you have?">
+Using `ls`, `grep`, `wc` and pipes, count how many files in `/usr/bin` have the word `zip` in their name.
+
+<Solution>
+
+```bash
+ls /usr/bin | grep zip | wc -l
+```
+
+Three stations: `ls` outputs all the names, `grep zip` keeps only those containing zip, and `wc -l` counts. The number depends on what you have installed.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "stdin / stdout / stderr", body: "0, 1 and 2: input, output and errors. Every command gets all three." },
+    { title: "`>` / `>>` / `<`", body: "To a file (overwrites), to the end of a file, and from a file. `>` erases without asking!" },
+    { title: "`2>` / `2>&1`", body: "Redirect errors, or merge them with the output. `/dev/null` swallows everything." },
+    { title: "`|` and `tee`", body: "Connect commands into an assembly line, and split the stream into a file along the way." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What's in the file after `echo a > f.txt` and then `echo b > f.txt`?",
+      options: [
+        { text: "a and b, on two lines", why: "That takes `>>`." },
+        { text: "Only b", why: "`>` empties the file before every write." },
+        { text: "Only a", why: "The second command overwrote the first." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You ran `cmd > out.txt` and still see an error message on the screen. Why?",
+      options: [
+        { text: "The error goes out on stderr, and `>` only redirects stdout", why: "For errors you need `2>`, or `2>&1`." },
+        { text: "The file is full", why: "Files in Linux don't \"fill up\" after a few lines." },
+        { text: "`>` doesn't work with commands that fail", why: "It works. The error just goes down a different pipe." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "What does `ls | wc -l` do?",
+      options: [
+        { text: "Saves the list to a file called wc", why: "For a file you need `>`. `|` connects to a command." },
+        { text: "Runs the two commands separately", why: "They're connected: `ls`'s output is `wc`'s input." },
+        { text: "Counts how many files are in the directory", why: "`ls` outputs one name per line, and `wc -l` counts lines." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

@@ -1,0 +1,195 @@
+# First Steps in the Terminal
+
+<Callout type="info" title="What you'll learn">
+- The difference between a **terminal**, a **shell** and a **prompt**.
+- How to read the prompt: who you are, on which computer and in which directory.
+- The first commands: `whoami`, `date`, `echo` and `clear`.
+- How every command is built: **command**, **options** and **arguments**.
+- Keyboard shortcuts that will save you lots of time.
+</Callout>
+
+## Terminal, shell and prompt
+
+Three words that sound complicated, but are simple:
+
+- The **terminal** is the window. Like a phone handset: you talk through it.
+- The **shell** is whoever answers on the other end. It reads what you typed, understands it and carries it out. On most distros it's called **Bash**.
+- The **prompt** is the line that says "I'm listening, go ahead and type". Like the dial tone before you dial.
+
+## Reading the prompt
+
+When you open a terminal, you'll see a line like this:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $
+`}</TerminalWindow>
+
+Every part means something:
+
+| Part | Meaning |
+| --- | --- |
+| `dana` | Your username |
+| `@ubuntu` | The computer's name |
+| `~` | The directory you're in. `~` is your home directory |
+| `$` | You're a regular user. If you see `#`, you're the superuser (root), and you need to be careful |
+
+## The first commands
+
+Type a command and press <Kbd>Enter</Kbd>. That's it. Let's try:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ whoami
+  dana
+  $ date
+  Wed Nov 11 20:18:07 IST 2026
+  $ echo "Hello, Linux!"
+  Hello, Linux!
+`}</TerminalWindow>
+
+- `whoami` ("who am I") shows the username.
+- `date` shows the date and time. `IST` is the time zone (Israel time, where this was run).
+- `echo` simply returns what you wrote. Sounds pointless, but we'll use it a lot later, mostly in scripts.
+
+Screen full? <Cmd>clear</Cmd> clears it. Your history isn't erased, just the screen.
+
+<Callout type="tip" title="Why the quotes?">
+The shell splits what you wrote into words by spaces. Without quotes, `echo hello    world` prints `hello world` with a single space. Quotes say "this is one piece of text, don't touch it", and keep all the spaces.
+</Callout>
+
+## How a command is built
+
+Almost every Linux command is built from three parts, like a sentence:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -l /home
+  total 4
+  drwxr-x--- 15 dana dana 4096 Nov 11 09:12 dana
+`}</TerminalWindow>
+
+| Part | In the example | Like in a sentence | What it does |
+| --- | --- | --- | --- |
+| **Command** | `ls` | The verb | What to do: list files |
+| **Option** | `-l` | The adverb | **How** to do it: in long format |
+| **Argument** | `/home` | The object | **What** to do it to: the `/home` directory |
+
+We'll talk about the output itself in the next chapter. For now, only the structure matters.
+
+### Short and long options
+
+Most options come in two forms:
+
+- **Short**: one hyphen and one letter, for example `-a`.
+- **Long**: two hyphens and a word, for example `--all`. Longer, but easier to remember what it means.
+
+`ls -a` and `ls --all` do exactly the same thing. And you can combine several short options: `ls -l -a` is the same as `ls -la`.
+
+## Uppercase and lowercase
+
+Linux tells uppercase and lowercase letters apart. `whoami` and `Whoami` are two different commands, and only the first one exists:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ Whoami
+  Command 'Whoami' not found, did you mean:
+    command 'whoami' from deb coreutils (9.4-3ubuntu6.2)
+  Try: sudo apt install <deb name>
+`}</TerminalWindow>
+
+Ubuntu guessed what you meant ("did you mean") and suggested `whoami`. Messages like this are your friends: always read them. In chapter 8 we'll learn to decode error messages.
+
+## Time-saving keyboard shortcuts
+
+| Key | What it does |
+| --- | --- |
+| <Kbd>Tab</Kbd> | Completes the name of a command, file or directory. Press twice to see all the options |
+| <Kbd>↑</Kbd> <Kbd>↓</Kbd> | Scroll through commands you already ran |
+| <Kbd keys="Ctrl+C" /> | Stops a running command (or cancels a line you started typing) |
+| <Kbd keys="Ctrl+L" /> | Clears the screen, like `clear` |
+
+<Callout type="warning" title="In the terminal, Ctrl+C isn't copy">
+In the terminal, <Kbd keys="Ctrl+C" /> **stops** a command. To copy text use <Kbd keys="Ctrl+Shift+C" />, and to paste use <Kbd keys="Ctrl+Shift+V" />. In WSL and some terminals, right-click works too.
+</Callout>
+
+The `history` command shows everything you've run, with a number for each line:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ history
+      1  whoami
+      2  date
+      3  echo "Hello, Linux!"
+      4  history
+`}</TerminalWindow>
+
+## Practice without fear
+
+Pilots learn to fly in a flight simulator, without risking a real plane. You have one too: below is a **terminal simulator**, a fake terminal that runs in your browser.
+
+Nothing you type in it touches your computer. Got tangled up? The reset button in the window's corner puts everything back to the start. And if you get a command wrong, a hint appears under the error.
+
+<TerminalSimulator mission="first-commands" />
+
+<Exercise title="A first conversation with the terminal">
+1. Run `whoami`, and then `date`.
+2. Press <Kbd>↑</Kbd> twice to get back to `whoami`, and run it again without typing.
+3. Run `sleep 100`. This command simply "sleeps" for 100 seconds. Stop it halfway.
+4. Type `hist` and press <Kbd>Tab</Kbd>. What happened?
+
+<Solution>
+1. You'll get the username, and then the date and time.
+2. <Kbd>↑</Kbd> brings back your last commands, newest first. With <Kbd>Enter</Kbd> it runs again.
+3. Press <Kbd keys="Ctrl+C" />. The command stops immediately, and you'll see `^C` (the notation for Ctrl+C) and a new prompt:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ sleep 100
+  ^C
+  $
+`}</TerminalWindow>
+
+4. <Kbd>Tab</Kbd> completed the word to `history`, because it's the only command that starts with `hist`. Press <Kbd>Enter</Kbd> and you'll see your history.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Terminal and shell", body: "The terminal is the window. The shell (Bash) reads and runs the commands." },
+    { title: "`dana@ubuntu:~$`", body: "User, computer, current directory, and `$` for a regular user." },
+    { title: "`ls -l /home`", body: "Command, option and argument: what to do, how, and to what." },
+    { title: "Tab, ↑, Ctrl+C", body: "Autocomplete, history, and stopping a command." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "In the command `ls -a /etc`, what is `-a`?",
+      options: [
+        { text: "An argument", why: "The argument is `/etc`, the directory being worked on." },
+        { text: "An option", why: "It starts with a hyphen and changes how `ls` works (here: show hidden files too)." },
+        { text: "A file name", why: "The leading hyphen marks it as an option, not a file." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "The prompt ends with `#` instead of `$`. What does that mean?",
+      options: [
+        { text: "You're logged in as the superuser (root), so be careful", why: "Exactly. Root is allowed to do anything, including deleting the system." },
+        { text: "There's an error in the terminal", why: "It's not an error, it's a sign of the user type." },
+        { text: "You're on a Mac", why: "On a Mac the prompt usually ends with `%`." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "A command is running and won't finish. How do you stop it?",
+      options: [
+        { text: "`Ctrl+Z`", why: "Ctrl+Z pauses a command rather than stopping it. We'll learn about it in chapter 11." },
+        { text: "Turn off the computer", why: "No need for such a drastic step." },
+        { text: "`Ctrl+C`", why: "Ctrl+C asks the command to stop immediately." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

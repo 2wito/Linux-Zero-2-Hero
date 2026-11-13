@@ -7,6 +7,7 @@ import {
   Clock,
   Code,
   Mail,
+  MessageSquarePlus,
   Server,
   Sparkles,
   Unlock,
@@ -18,7 +19,7 @@ import { HeroTerminal } from "@/components/hero-terminal";
 import { DoneMark, LandingProgress } from "@/components/progress-tracker";
 import { SiteFooter } from "@/components/site-footer";
 import { docHref, type Locale } from "@/lib/i18n";
-import { AUTHOR, FEEDBACK_EMAIL, hasFeedbackEmail } from "@/lib/site";
+import { AUTHOR, FEEDBACK_EMAIL, hasFeedbackEmail, NEW_ISSUE_URL } from "@/lib/site";
 import { chapters, chapterText, levels, levelStats, type Chapter, type Level } from "@/lib/syllabus";
 import { ui, type Ui } from "@/lib/ui";
 
@@ -303,7 +304,16 @@ function About({ t, locale, Forward }: Section) {
                 {a.feedbackCta}
               </a>
             ) : (
-              <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-3 text-sm text-muted">{a.feedbackSoon}</p>
+              <a
+                href={NEW_ISSUE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-accent px-5 py-2.5 font-medium text-accent hover:bg-accent/10"
+              >
+                <MessageSquarePlus className="size-4" aria-hidden />
+                {a.feedbackIssue}
+                <span className="sr-only">{t.resources.external}</span>
+              </a>
             )}
           </div>
         </div>

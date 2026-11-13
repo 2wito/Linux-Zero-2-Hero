@@ -1,0 +1,269 @@
+# Navigating the Filesystem
+
+<Callout type="info" title="What you'll learn">
+- How files are organized in Linux: one tree that starts at `/`.
+- The three navigation commands: `pwd`, `ls` and `cd`.
+- The difference between an **absolute path** and a **relative path**.
+- The shortcuts `~`, `.`, `..` and `-`.
+- What's in the important directories, and how to see **hidden files**.
+</Callout>
+
+## One big building
+
+Windows has separate drives: `C:`, `D:` and so on. Linux has nothing like that. **Everything** lives in one tree.
+
+Think of a huge office building:
+
+- The **lobby** is the root directory, written `/`. Every route in the building starts there.
+- **Floors** branch off the lobby: `home`, `etc`, `var` and more.
+- Every floor has **rooms**, and any room can have more rooms inside it.
+- Each of you has a **private apartment** on the `home` floor. That's your **home directory**, for example `/home/dana`.
+
+<Callout type="tip" title="Directory or folder?">
+In Linux people usually say **directory**; in Windows they say **folder**. It's exactly the same thing.
+</Callout>
+
+## Where am I? `pwd`
+
+`pwd` (print working directory) answers the question "which room am I standing in right now?":
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana
+`}</TerminalWindow>
+
+The path `/home/dana` says: from the lobby (`/`), to the `home` floor, to `dana`'s apartment. The `/` also works as the **separator** between directories.
+
+## What's here? `ls`
+
+`ls` (list) shows what's in the current directory:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls
+  Desktop  Documents  Downloads  notes.txt  projects
+`}</TerminalWindow>
+
+`ls` is one of the most useful commands, and it has lots of options. The three important ones:
+
+| Option | What it does |
+| --- | --- |
+| `-l` | **Long** format: permissions, owner, size and date |
+| `-a` | Shows **all**, including hidden files |
+| `-h` | **Human-readable** sizes: `4.0K` instead of `4096`. Works together with `-l` |
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -lh
+  total 20K
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Desktop
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Documents
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Downloads
+  -rw-r--r-- 1 dana dana  120 Nov 11 10:02 notes.txt
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 10:30 projects
+`}</TerminalWindow>
+
+How do you read a line like that? Let's take apart the `notes.txt` line:
+
+- `-rw-r--r--`: the **first character** says what it is. `-` is a regular file and `d` is a directory. The rest are permissions, which we'll learn about in chapter 9.
+- `dana dana`: the file belongs to the user `dana` and the group `dana`.
+- `120`: the size, 120 bytes.
+- `Nov 11 10:02`: when the file was last changed.
+- `notes.txt`: the name.
+
+### Hidden files
+
+A file whose name **starts with a dot** is a hidden file. `ls` doesn't show it unless you add `-a`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -a
+  .   .bash_history  .bashrc  .profile  Documents  notes.txt
+  ..  .bash_logout   .cache   Desktop   Downloads  projects
+`}</TerminalWindow>
+
+Hidden files are usually **configuration files**. For example, `.bashrc` stores your terminal's settings (we'll edit it in chapter 15). They're hidden so they don't get in the way day to day.
+
+And what are `.` and `..` at the start of the list? We'll get to that in a moment.
+
+## Moving between directories: `cd`
+
+`cd` (change directory) is how you move to another directory, like walking to another room in the building:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd projects
+  $ pwd
+  /home/dana/projects
+`}</TerminalWindow>
+
+`cd` prints nothing when it succeeds. The prompt does change to show the new location. If the directory doesn't exist, you get a message:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd Projects
+  bash: cd: Projects: No such file or directory
+`}</TerminalWindow>
+
+Remember? Uppercase and lowercase matter. `Projects` and `projects` are two different directories.
+
+## Absolute vs. relative paths
+
+There are two ways to say where to go:
+
+An **absolute path** starts with `/`. It's like a full address with city and street: it works from anywhere. For example `/home/dana/projects`.
+
+A **relative path** does **not** start with `/`. It's like "two doors to the left": it depends on where you're standing right now. For example `projects` only works if you're already in `/home/dana`.
+
+<TerminalWindow title="~/projects" user="dana@ubuntu">{`
+  $ cd /etc
+  $ pwd
+  /etc
+  $ cd /home/dana/projects
+  $ pwd
+  /home/dana/projects
+`}</TerminalWindow>
+
+## Four shortcuts worth knowing
+
+| Shortcut | Meaning | Example |
+| --- | --- | --- |
+| `~` | Your home directory | `cd ~` (or just `cd`) takes you home |
+| `.` | The current directory | `ls .` is the same as `ls` |
+| `..` | One directory **up** (the parent) | `cd ..` goes up a floor |
+| `-` | The **previous** directory you were in | `cd -` goes back, like a browser's "Back" button |
+
+<TerminalWindow title="~/projects" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana/projects
+  $ cd ..
+  $ pwd
+  /home/dana
+  $ cd -
+  /home/dana/projects
+`}</TerminalWindow>
+
+Notice: `cd -` does print the directory you went back to, so you know where you landed.
+
+<Callout type="tip" title="Tab works on paths too">
+Type `cd /ho` and press <Kbd>Tab</Kbd>: the terminal completes it to `/home/`. That saves typing and prevents typos. If there are several options, pressing twice shows them all.
+</Callout>
+
+## The building map: the important directories
+
+Here's what the lobby looks like on Ubuntu:
+
+<TerminalWindow title="/" user="dana@ubuntu">{`
+  $ ls /
+  bin                etc                lib64       opt   sbin                sys
+  bin.usr-is-merged  home               lost+found  proc  sbin.usr-is-merged  tmp
+  boot               lib                media       root  snap                usr
+  dev                lib.usr-is-merged  mnt         run   srv                 var
+`}</TerminalWindow>
+
+You don't need to know all of them. These are the important ones:
+
+| Directory | What's in it | In the building |
+| --- | --- | --- |
+| `/home` | Users' home directories | The apartment floor |
+| `/root` | The superuser's (root's) home directory | The building manager's apartment |
+| `/etc` | System configuration files | The management office with all the rulebooks |
+| `/var` | Data that changes all the time, like logs | The archive and logbooks |
+| `/tmp` | Temporary files, deleted from time to time | A meeting room cleared at the end of the day |
+| `/usr` | Installed programs and libraries | The equipment storeroom |
+| `/bin` | Basic commands like `ls` | The toolbox |
+| `/mnt`, `/media` | Attached disks and USB drives | The visitors' parking lot |
+
+<Callout type="warning" title="Look, don't touch">
+You're welcome to wander around `/etc` and `/var` with `ls` and `cd`. But don't change anything there until you know exactly what you're doing. Most files there are protected anyway, and you'll get `Permission denied` if you try.
+</Callout>
+
+## Practice: touring the building
+
+Now it's your turn to look around, in the simulator. Try making mistakes on purpose too: `cd` into a directory that doesn't exist, or `cd /root` (the manager's locked apartment), and see how Linux answers.
+
+<TerminalSimulator mission="navigate" />
+
+<Exercise title="A building tour">
+1. Check where you are.
+2. Go to the `/etc` directory and show its contents.
+3. Go up one directory. Where are you now?
+4. Get back to your home directory as fast as possible.
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana
+  $ cd /etc
+  $ ls
+  ...
+  $ cd ..
+  $ pwd
+  /
+  $ cd
+  $ pwd
+  /home/dana
+`}</TerminalWindow>
+
+- `ls` in `/etc` shows a long list of configuration files. You don't need to understand them now.
+- `cd ..` from `/etc` leads to `/`, the lobby, because `/etc` sits directly under it.
+- `cd` with nothing after it (or `cd ~`) takes you home from anywhere.
+</Solution>
+</Exercise>
+
+<Exercise title="Find the hidden ones">
+Which hidden files are in your home directory? And which command also shows their size in a readable format?
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd
+  $ ls -a
+  .   .bash_history  .bashrc  .profile  Documents  notes.txt
+  ..  .bash_logout   .cache   Desktop   Downloads  projects
+  $ ls -lah
+`}</TerminalWindow>
+
+The files that start with a dot are the hidden ones. `ls -lah` combines three options: long (`l`), all (`a`) and human-readable sizes (`h`).
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`pwd`", body: "Shows which directory you're in right now." },
+    { title: "`ls -lah`", body: "Shows the contents: long format, including hidden files, with readable sizes." },
+    { title: "`cd`", body: "Changes directory. `cd ..` goes up, `cd -` goes back, `cd` alone goes home." },
+    { title: "Absolute vs. relative", body: "Absolute starts with `/` and works from anywhere. Relative starts from where you are." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You're in `/home/dana/projects` and run `cd ..`. Where will you be?",
+      options: [
+        { text: "`/home/dana`", why: "`..` is the directory above, the parent." },
+        { text: "`/`", why: "`..` goes up only one directory, not all the way to the root." },
+        { text: "`/home/dana/projects/..`", why: "That's the path you wrote, but the system translates it to `/home/dana`." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "Which of these paths is an absolute path?",
+      options: [
+        { text: "`projects/site`", why: "It doesn't start with `/`, so it's relative to where you are." },
+        { text: "`../photos`", why: "This one is relative too: it starts where you are and goes up a directory." },
+        { text: "`/var/log`", why: "An absolute path always starts with `/` and leads to the same place from anywhere." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "Why doesn't `ls` show `.bashrc`?",
+      options: [
+        { text: "Because the file was deleted", why: "It wasn't deleted. `ls -a` will show it." },
+        { text: "Because names that start with a dot are hidden files", why: "You need `ls -a` to see them." },
+        { text: "Because you don't have permission", why: "It's your own file, and the issue isn't permissions: it's just hidden." },
+      ],
+      answer: 1,
+    },
+  ]}
+/>

@@ -1,0 +1,133 @@
+# What Linux Is and Why It Matters
+
+<Callout type="info" title="What you'll learn">
+- What an **operating system** is, and what it does in a computer.
+- What **Linux** is, and the difference between a "kernel" and a complete system.
+- Where Linux already shows up in your life, even if you never noticed.
+- Why Linux is free, and what **open source** means.
+</Callout>
+
+## What is an operating system?
+
+Picture a busy restaurant. There's a kitchen with one oven, a stove and a fridge. Dozens of orders arrive at once. Someone has to decide which dish goes into the oven now, who gets the stove, and where everything goes in the fridge.
+
+That person is the **kitchen manager**. Without them, the cooks would keep bumping into each other.
+
+A computer works the same way:
+
+- The **hardware** (processor, memory, disk, screen) is the kitchen.
+- The **programs** (browser, music player, game) are the orders.
+- The **operating system** is the kitchen manager: it decides which program gets the processor right now, how much memory each one gets, and how files are stored on the disk.
+
+Windows is an operating system. So is macOS. And so is **Linux**.
+
+## So what is Linux?
+
+In 1991 a Finnish student named **Linus Torvalds** wrote, as a side project, the heart of a new operating system. He called it Linux and published the code for anyone who wanted it.
+
+That heart is called the **kernel**. It's the part that talks directly to the hardware. But a kernel on its own is like an engine without a car: powerful, but you can't drive it anywhere.
+
+To get a complete system, you connect many more parts to the kernel:
+
+- **Basic tools** like the terminal and the commands we'll learn in this guide. Many of them came from a project called GNU.
+- A **graphical interface** with windows, menus and a mouse.
+- **Programs**: a browser, a document editor, a media player.
+
+<Callout type="tip" title="Kernel vs. complete system">
+When people say "Linux", they usually mean the whole system. Strictly speaking, Linux is just the kernel. In the next chapter we'll meet **distributions**: the complete cars built around this engine.
+</Callout>
+
+## Linux is already all around you
+
+Maybe you've never installed Linux, but you almost certainly use it every day:
+
+| Where | How Linux is involved |
+| --- | --- |
+| Android phones | Android is built on the Linux kernel. |
+| Websites and apps | Most servers on the internet run Linux. When you browse, a Linux server is probably answering. |
+| The cloud | The big cloud services mostly run Linux machines. |
+| At home | Routers, smart TVs and security cameras usually run a small version of Linux. |
+| Supercomputers | Most of the world's most powerful supercomputers run Linux. |
+
+The reason is simple: Linux is stable, it can be adapted to any device, and it costs nothing.
+
+## Free? How does that work?
+
+Linux is **open source**. That means the "recipe" for the software (the source code) is visible to everyone. You're allowed to read it, learn from it, change it and share it, under the terms of its license.
+
+Think of a grandmother's recipe published online: anyone can cook it, add their own spice and share their version. That's how thousands of programmers and companies around the world have been improving Linux for more than thirty years.
+
+<Callout type="info" title="The mascot">
+The Linux mascot is a cute penguin named **Tux**. You'll run into him in lots of places.
+</Callout>
+
+## How Linux "introduces itself"
+
+We haven't installed Linux yet (that happens in chapter 3), but here's a first peek. The `uname` command asks the system "who are you?":
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ uname
+  Linux
+  $ uname -r
+  6.8.0-48-generic
+`}</TerminalWindow>
+
+- `uname` on its own answers with the kernel's name: **Linux**.
+- `uname -r` adds the kernel's **version number**. Yours will probably be different, and that's perfectly fine.
+
+Don't worry if this still looks like magic. In chapter 4 we'll take every part of a command apart.
+
+<Exercise title="Find Linux at home">
+Go over the devices at home (or at work) and try to guess: which of them run Linux? Write down at least three.
+<Solution>
+Common answers: an **Android phone**, the internet **router**, a **smart TV**, a security camera, a smartwatch, and a Chromebook (ChromeOS is built on the Linux kernel).
+
+Every website you visited today also probably runs on a Linux server, even though it isn't in your home.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Operating system", body: "Runs the computer: shares the processor and memory between programs and talks to the hardware." },
+    { title: "Kernel", body: "The heart of the operating system. Strictly speaking, Linux is a kernel." },
+    { title: "Linux everywhere", body: "In Android, servers, the cloud, routers and supercomputers." },
+    { title: "Open source", body: "The source code is visible to everyone, and you may change and share it. That's why Linux is free." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What is the main job of the operating system?",
+      options: [
+        { text: "Browsing the internet", why: "Browsing is a program's job (the browser). The operating system just lets it run." },
+        { text: "Running the computer and sharing resources between programs", why: "Just like the kitchen manager: it decides who gets the processor, memory and disk." },
+        { text: "Only protecting against viruses", why: "Security is part of the job, but far from all of it." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "Strictly speaking, Linux is...",
+      options: [
+        { text: "The kernel of an operating system", why: "Linus Torvalds wrote a kernel, and complete systems were built around it." },
+        { text: "The name of a computer", why: "Linux is software, not hardware. It runs on many kinds of computers." },
+        { text: "A web browser", why: "No. A browser is a program that runs on top of the operating system." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "Why is Linux free?",
+      options: [
+        { text: "Because it's a trial version", why: "There's no trial period here. Linux is free forever." },
+        { text: "Because it's old and nobody develops it", why: "Quite the opposite: thousands of programmers and companies keep improving it." },
+        { text: "Because it's open source, and anyone may use and share it", why: "Exactly. The code is visible, and the license lets you use, change and share it." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

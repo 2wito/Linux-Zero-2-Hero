@@ -96,7 +96,7 @@ const he = {
       feedbackTitle: "מצאתם טעות? יש לכם רעיון?",
       feedbackBody: "כל משוב עוזר לשפר את המדריך לכולם.",
       feedbackCta: "שלחו משוב במייל",
-      feedbackSoon: "כתובת למשוב תתווסף כאן בקרוב.",
+      feedbackIssue: "פתחו Issue ב-GitHub",
       more: "עוד על הפרויקט",
     },
     footer: {
@@ -219,6 +219,26 @@ const he = {
   resources: {
     external: "(נפתח בלשונית חדשה)",
     language: { he: "בעברית", en: "באנגלית" },
+  },
+  challenges: {
+    practices: "מתרגל את",
+    chapterLink: (n: number) => `פרק ${n}`,
+    hint: "רמז",
+    solution: "הצגת הפתרון",
+    simulatorOpen: "פתרו בסימולטור",
+    simulatorClose: "סגירת הסימולטור",
+    markSolved: "סמנו שפתרתם",
+    solved: "פתרתם!",
+    count: (n: number, total: number) => `פתרתם ${n} מתוך ${total} אתגרים`,
+  },
+  finish: {
+    progressTitle: "איפה אתם עומדים",
+    progressEmpty: "עוד לא סימנתם פרקים כהושלמו. אפשר לחזור לכל פרק ולסמן אותו, או לענות על הבוחן שבסופו.",
+    feedbackTitle: "מצאתם טעות? יש לכם רעיון?",
+    feedbackBody: "כל משוב עוזר לשפר את המדריך לכולם: פקודה שלא עבדה אצלכם, הסבר שלא היה ברור, או נושא שחסר.",
+    feedbackEmail: "שלחו משוב במייל",
+    feedbackIssue: "פתחו Issue ב-GitHub",
+    sourceCode: "קוד המקור של האתר ב-GitHub",
   },
   simulator: {
     aria: "סימולטור טרמינל לתרגול",
@@ -382,7 +402,7 @@ const en: Ui = {
       feedbackTitle: "Found a mistake? Have an idea?",
       feedbackBody: "Every bit of feedback makes the guide better for everyone.",
       feedbackCta: "Send feedback by email",
-      feedbackSoon: "A feedback address will be added here soon.",
+      feedbackIssue: "Open an issue on GitHub",
       more: "More about the project",
     },
     footer: {
@@ -505,6 +525,26 @@ const en: Ui = {
   resources: {
     external: "(opens in a new tab)",
     language: { he: "In Hebrew", en: "In English" },
+  },
+  challenges: {
+    practices: "Practices",
+    chapterLink: (n: number) => `Chapter ${n}`,
+    hint: "Hint",
+    solution: "Show solution",
+    simulatorOpen: "Solve it in the simulator",
+    simulatorClose: "Close the simulator",
+    markSolved: "Mark as solved",
+    solved: "Solved!",
+    count: (n: number, total: number) => `You solved ${n} of ${total} challenges`,
+  },
+  finish: {
+    progressTitle: "Where you stand",
+    progressEmpty: "You haven't marked any chapters as done yet. Go back to any chapter and mark it, or answer the quiz at its end.",
+    feedbackTitle: "Found a mistake? Have an idea?",
+    feedbackBody: "Every piece of feedback makes the guide better for everyone: a command that didn't work for you, an explanation that wasn't clear, or a missing topic.",
+    feedbackEmail: "Send feedback by email",
+    feedbackIssue: "Open an issue on GitHub",
+    sourceCode: "The site's source code on GitHub",
   },
   simulator: {
     aria: "Practice terminal simulator",

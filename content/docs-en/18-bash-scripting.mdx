@@ -1,0 +1,530 @@
+# Writing Bash Scripts
+
+<Callout type="info" title="What you'll learn">
+- What a **script** is, and what the **shebang** line is.
+- **Variables**, **input** from the user and **arguments**.
+- Conditions with `if`, and loops with `for` and `while`.
+- **Functions**.
+- **Exit codes**, `&&` and `||`.
+- `set -euo pipefail`, and how it saves you from mistakes.
+- Building a **real backup script**, with a date and cleanup of old backups.
+</Callout>
+
+## A recipe the computer cooks by itself
+
+Until now we typed commands one by one, like a cook doing all the cooking. A **script** is a **written recipe**: a file with a list of commands that the computer carries out in order. You write it once and run it as many times as you like, with no typos and no forgotten steps.
+
+Everything we've learned so far works in a script too: pipes, redirection, `grep`, `tar`. A script is just commands in a file, plus a few programming-language tools.
+
+## The first script
+
+Create a file (for example with `nano hello.sh`):
+
+```bash title="hello.sh"
+#!/bin/bash
+# My first script
+echo "Hello from a script!"
+echo "Today is $(date +%A)"
+```
+
+- **Line 1, the shebang** (`#!` followed by a path): tells the system **which program** runs the file. Here, `/bin/bash`. It must be the first line.
+- **Line 2**: a comment. Everything after `#` is kept for you, and the shell ignores it.
+- **`$(...)`**: runs a command and drops its output in place. `date +%A` returns the name of the day.
+
+Give it execute permission (chapter 9) and run it (`./` from chapter 15):
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ chmod +x hello.sh
+  $ ./hello.sh
+  Hello from a script!
+  Today is Wednesday
+  $ bash hello.sh
+  Hello from a script!
+  Today is Wednesday
+`}</TerminalWindow>
+
+`bash hello.sh` runs the file even without execute permission, because here you're running `bash` and the file is only its input.
+
+## Variables
+
+As in chapter 15: no spaces around `=`, and `$` to read:
+
+```bash title="vars.sh"
+#!/bin/bash
+name="Dana"
+count=3
+echo "Hi $name, you have $count new messages"
+files=$(ls | wc -l)
+echo "There are $files files here"
+echo "Next year you'll have $((count * 2)) messages"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./vars.sh
+  Hi Dana, you have 3 new messages
+  There are 14 files here
+  Next year you'll have 6 messages
+`}</TerminalWindow>
+
+- `files=$(ls | wc -l)`: store a command's **output** in a variable.
+- `$((...))`: arithmetic. Works with whole numbers only.
+
+<Callout type="tip" title="Always quote variables">
+Write `"$name"`, not `$name`. Without quotes, a value with a space (like `my notes.txt`) splits into two words, just like in chapter 6. It's the number one source of bugs in scripts.
+</Callout>
+
+## Input from the user: `read`
+
+```bash title="greet.sh"
+#!/bin/bash
+read -p "What's your name? " name
+echo "Nice to meet you, $name!"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./greet.sh
+  What's your name? Dana
+  Nice to meet you, Dana!
+`}</TerminalWindow>
+
+`read` waits for you to type a line, and stores it in the variable `name`. `-p` (prompt) shows a question first.
+
+## Arguments: `$1`, `$2`...
+
+The more common way to give a script information is **arguments**, just like any command:
+
+```bash title="args.sh"
+#!/bin/bash
+echo "Script name: $0"
+echo "First argument: $1"
+echo "Second argument: $2"
+echo "Number of arguments: $#"
+echo "All arguments: $@"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./args.sh hello world 42
+  Script name: ./args.sh
+  First argument: hello
+  Second argument: world
+  Number of arguments: 3
+  All arguments: hello world 42
+`}</TerminalWindow>
+
+| Variable | What's in it |
+| --- | --- |
+| `$0` | The script's name |
+| `$1`, `$2`, ... | The first argument, the second... |
+| `$#` | How many arguments we got |
+| `$@` | All the arguments |
+
+## Conditions: `if`
+
+`if` checks a condition and runs code only if it's true. Here's a script that checks what the path it got is:
+
+```bash title="check.sh"
+#!/bin/bash
+file="$1"
+
+if [ -z "$file" ]; then
+    echo "Usage: $0 <file>"
+    exit 1
+fi
+
+if [ -f "$file" ]; then
+    echo "$file is a file"
+elif [ -d "$file" ]; then
+    echo "$file is a directory"
+else
+    echo "$file does not exist"
+    exit 2
+fi
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./check.sh
+  Usage: ./check.sh <file>
+  $ ./check.sh shopping.txt
+  shopping.txt is a file
+  $ ./check.sh projects
+  projects is a directory
+  $ ./check.sh nosuch
+  nosuch does not exist
+`}</TerminalWindow>
+
+The structure: `if [ condition ]; then ... elif ...; else ... fi` (`fi` is `if` backwards, and closes the condition). The spaces inside `[ ]` are **required**: `[ -f "$file" ]`, not `[-f "$file"]`.
+
+The common tests:
+
+| Test | True when |
+| --- | --- |
+| `-f path` | A regular file exists |
+| `-d path` | A directory exists |
+| `-e path` | Something exists (file or directory) |
+| `-z "$s"` | The string is empty |
+| `"$a" = "$b"` | Two strings are identical |
+| `$a -eq $b` | Numbers are equal (`-ne` different) |
+| `$a -gt $b` / `-lt` | Greater than / less than |
+| `$a -ge $b` / `-le` | Greater or equal / less or equal |
+| `! ...` | Invert the condition |
+
+```bash title="age.sh"
+#!/bin/bash
+age=$1
+if [ "$age" -ge 18 ]; then
+    echo "Adult"
+else
+    echo "Minor"
+fi
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./age.sh 21
+  Adult
+  $ ./age.sh 12
+  Minor
+`}</TerminalWindow>
+
+<Callout type="tip" title="Why -ge and not >=?">
+Inside `[ ]`, the `>` sign is a **redirection** (chapter 12)! `[ $a > 5 ]` creates a file called `5`. For numbers, use `-gt`, `-lt` and their friends.
+</Callout>
+
+## Loops: `for` and `while`
+
+`for` goes over a list and runs the code once per item. `while` repeats as long as a condition is true:
+
+```bash title="loops.sh"
+#!/bin/bash
+for fruit in apple banana cherry; do
+    echo "I like $fruit"
+done
+
+for file in *.txt; do
+    echo "Found: $file ($(wc -l < "$file") lines)"
+done
+
+for i in {1..3}; do
+    echo "Round $i"
+done
+
+count=3
+while [ $count -gt 0 ]; do
+    echo "$count..."
+    count=$((count - 1))
+done
+echo "Liftoff!"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./loops.sh
+  I like apple
+  I like banana
+  I like cherry
+  Found: numbers.txt (5 lines)
+  Found: shopping.txt (2 lines)
+  Round 1
+  Round 2
+  Round 3
+  3...
+  2...
+  1...
+  Liftoff!
+`}</TerminalWindow>
+
+- `for file in *.txt`: the asterisk from chapter 6 turns into the list of all `.txt` files. That's the most common way to work on many files.
+- `{1..3}`: a sequence of numbers, 1 to 3.
+- In `while`, it's important to change something on every round (here `count`). Otherwise the loop never ends, and <Kbd keys="Ctrl+C" /> will stop it.
+
+## Functions
+
+A **function** is "a recipe inside a recipe": a named piece of code you can call several times. Inside a function, `$1` is the **function's** argument:
+
+```bash title="func.sh"
+#!/bin/bash
+greet() {
+    local who="$1"
+    echo "Hello, $who!"
+}
+
+is_even() {
+    [ $(( $1 % 2 )) -eq 0 ]
+}
+
+greet "Dana"
+greet "Yossi"
+
+for n in 3 4; do
+    if is_even "$n"; then
+        echo "$n is even"
+    else
+        echo "$n is odd"
+    fi
+done
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./func.sh
+  Hello, Dana!
+  Hello, Yossi!
+  3 is odd
+  4 is even
+`}</TerminalWindow>
+
+- `local` says the variable exists only inside the function, and doesn't "leak" out.
+- `is_even` prints nothing. It returns **success or failure**, so you can put it straight into an `if`. That leads us to the next topic.
+
+## Exit codes
+
+Every command, when it finishes, returns a **number**: `0` means success, and any other number means something failed. The `$?` variable holds the last command's code:
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ls /etc > /dev/null
+  $ echo $?
+  0
+  $ ls /nosuch
+  ls: cannot access '/nosuch': No such file or directory
+  $ echo $?
+  2
+`}</TerminalWindow>
+
+Our scripts return a code too, with `exit`. In `check.sh` we wrote `exit 1` when an argument was missing and `exit 2` when the file didn't exist. That way whoever runs the script (a person or another script) knows whether it succeeded.
+
+### `&&` and `||`
+
+| Combination | Meaning |
+| --- | --- |
+| `a && b` | Run `b` **only if** `a` succeeded |
+| `a \|\| b` | Run `b` **only if** `a` failed |
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ grep -q root /etc/passwd && echo "found"
+  found
+  $ mkdir projects || echo "could not create"
+  mkdir: cannot create directory ‘projects’: File exists
+  could not create
+`}</TerminalWindow>
+
+(`grep -q`, quiet, prints nothing. It only returns success or failure.) We've already seen `&&`: `sudo apt update && sudo apt upgrade` runs the upgrade only if refreshing the list succeeded.
+
+## `set -euo pipefail`: a seat belt
+
+Here's a real problem. Bash's default is to **keep going** after an error:
+
+```bash title="loose.sh"
+#!/bin/bash
+cd /nosuch/folder
+echo "Still running in: $(pwd)"
+```
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ./loose.sh
+  ./loose.sh: line 2: cd: /nosuch/folder: No such file or directory
+  Still running in: /home/dana
+`}</TerminalWindow>
+
+The `cd` failed, and the script kept running **in the wrong directory**. Now imagine the next line was `rm -rf *`.
+
+<Callout type="danger" title="A failed cd + rm = disaster">
+`cd /some/folder` followed by `rm -rf *` is the most destructive combination in scripts. If `cd` fails, `rm` deletes everything in the **current** directory, maybe your home directory. Never write this without `set -e`, or at least `cd /some/folder || exit 1`.
+</Callout>
+
+The fix: one line at the top of **every** script:
+
+```bash
+set -euo pipefail
+```
+
+| Part | What it does |
+| --- | --- |
+| `-e` | Stops the script at the first error |
+| `-u` | An undefined variable is an error (not a silently empty value) |
+| `-o pipefail` | A pipeline fails if **any** of its commands failed, not just the last one |
+
+`-u` catches typos in variable names:
+
+```bash title="strict.sh"
+#!/bin/bash
+set -euo pipefail
+
+backup_dir="/tmp/backups"
+echo "Backing up to $backup_dri"
+echo "This line never runs"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./strict.sh
+  ./strict.sh: line 5: backup_dri: unbound variable
+  $ echo $?
+  1
+`}</TerminalWindow>
+
+Without `-u`, `$backup_dri` (with the typo) would simply be empty, and the script would carry on with a wrong path.
+
+## Project: a real backup script
+
+Let's put it all together. The script takes a directory, creates a `.tar.gz` archive of it (chapter 17) with the date and time in the name, and keeps only the 5 latest backups:
+
+```bash title="backup.sh"
+#!/bin/bash
+# backup.sh: creates a dated, compressed backup of a folder
+# Usage: ./backup.sh <folder> [destination]
+set -euo pipefail
+
+source_dir="${1:-}"
+dest_dir="${2:-$HOME/backups}"
+keep=5
+
+if [ -z "$source_dir" ]; then
+    echo "Usage: $0 <folder> [destination]" >&2
+    exit 1
+fi
+
+if [ ! -d "$source_dir" ]; then
+    echo "Error: '$source_dir' is not a directory" >&2
+    exit 1
+fi
+
+mkdir -p "$dest_dir"
+
+name=$(basename "$source_dir")
+stamp=$(date +%Y-%m-%d_%H-%M-%S)
+archive="$dest_dir/${name}_${stamp}.tar.gz"
+
+tar -czf "$archive" -C "$(dirname "$source_dir")" "$name"
+echo "Created $archive ($(du -h "$archive" | cut -f1))"
+
+# Keep only the newest $keep backups of this folder
+ls -1t "$dest_dir/${name}"_*.tar.gz | tail -n +$((keep + 1)) | while read -r old; do
+    rm -- "$old"
+    echo "Removed old backup: $old"
+done
+```
+
+What's new here:
+
+- **`${1:-}`**: the first argument, or empty if we didn't get one. Without it, `set -u` would stop the script before we even had a chance to print an explanation.
+- **`${2:-$HOME/backups}`**: a default value. If no destination is given, the backup goes to `~/backups`.
+- **`>&2`**: error messages go to stderr (chapter 12), as real commands do.
+- **`basename` / `dirname`**: split a path. From `projects/site` they return `site` and `projects`.
+- **`${name}_${stamp}`**: the curly braces mark where the variable name ends. Without them, Bash would look for a variable called `name_`.
+- **The last line**: `ls -1t` sorts newest first, `tail -n +6` keeps only what comes after the first five, and the loop deletes those. `--` tells `rm` that what follows is a file name, even if it starts with a hyphen.
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./backup.sh
+  Usage: ./backup.sh <folder> [destination]
+  $ ./backup.sh nosuch
+  Error: 'nosuch' is not a directory
+  $ ./backup.sh projects/site /tmp/bk-demo
+  Created /tmp/bk-demo/site_2026-11-11_21-08-40.tar.gz (8.0K)
+  $ tar -tzf /tmp/bk-demo/site_*.tar.gz
+  site/
+  site/index.html
+  site/data.txt
+`}</TerminalWindow>
+
+And after a few runs, when there are already 5 backups, the script cleans up the oldest:
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ls /tmp/bk
+  site_2026-11-11_21-08-53.tar.gz  site_2026-11-11_21-08-56.tar.gz
+  site_2026-11-11_21-08-54.tar.gz  site_2026-11-11_21-08-57.tar.gz
+  site_2026-11-11_21-08-55.tar.gz
+  $ ./backup.sh projects/site /tmp/bk
+  Created /tmp/bk/site_2026-11-11_21-09-00.tar.gz (4.0K)
+  Removed old backup: /tmp/bk/site_2026-11-11_21-08-53.tar.gz
+  $ ls /tmp/bk
+  site_2026-11-11_21-08-54.tar.gz  site_2026-11-11_21-08-57.tar.gz
+  site_2026-11-11_21-08-55.tar.gz  site_2026-11-11_21-09-00.tar.gz
+  site_2026-11-11_21-08-56.tar.gz
+`}</TerminalWindow>
+
+<Callout type="warning" title="A script that deletes: test it on a scratch directory">
+This script runs `rm`. Before running a script that deletes files on real data, run it on a scratch directory (like `/tmp/bk` here). A handy trick: temporarily replace `rm` with `echo rm`, and you'll see what **would** be deleted without actually deleting it.
+</Callout>
+
+In the next chapter we'll make it run by itself, every night.
+
+<Exercise title="A file counter">
+Write a script `count.sh` that takes a directory as an argument and prints how many files (not directories) are in it. If it got no argument, or the directory doesn't exist, it prints a message and exits with code `1`.
+
+<Solution>
+
+```bash title="count.sh"
+#!/bin/bash
+set -euo pipefail
+
+dir="${1:-}"
+
+if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+    echo "Usage: $0 <directory>" >&2
+    exit 1
+fi
+
+count=$(find "$dir" -maxdepth 1 -type f | wc -l)
+echo "$dir has $count files"
+```
+
+`find -maxdepth 1 -type f` (chapter 14) finds only files, and only in the directory itself. Don't forget `chmod +x count.sh`.
+</Solution>
+</Exercise>
+
+<Exercise title="Bulk renaming">
+A directory holds the files `photo1.JPG`, `photo2.JPG` and `photo3.JPG`. Write a loop that changes the extension of all of them to `.jpg` (lowercase).
+
+<Solution>
+
+```bash
+for f in *.JPG; do
+    mv -- "$f" "${f%.JPG}.jpg"
+done
+```
+
+`${f%.JPG}` is the file name **without** the `.JPG` at the end. Add `.jpg` to it, and `mv` renames the file. Before running it on real files, it's worth trying it first with `echo mv` instead of `mv`.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`#!/bin/bash`", body: "The shebang on the first line, `chmod +x`, and run it with `./`." },
+    { title: "Variables and arguments", body: "`name=x`, `\"$name\"`, `$1`, `$#`, `$(command)` and `$((math))`." },
+    { title: "`if` / `for` / `while`", body: "Conditions with `[ ]` (spaces required!), and loops over lists or while a condition is true." },
+    { title: "`set -euo pipefail`", body: "Stops on an error, an undefined variable and a failed pipeline. At the top of every script." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "What does the `#!/bin/bash` line at the top of a script do?",
+      options: [
+        { text: "It's a comment, and the computer ignores it", why: "It starts with `#`, but on the first line `#!` gets a special meaning." },
+        { text: "It gives execute permission", why: "Permission is given with `chmod +x`." },
+        { text: "It tells the system which program runs the file", why: "That's the shebang." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "A script has `cd /data` followed by `rm -rf *`, and `/data` doesn't exist. What happens without `set -e`?",
+      options: [
+        { text: "`rm` deletes everything in the current directory", why: "The `cd` failed, and the script carried on in the same directory." },
+        { text: "The script stops after the `cd`", why: "Only with `set -e`. The default is to keep going." },
+        { text: "`rm` fails too", why: "It succeeds, in the wrong directory." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "What's the value of `$?` after a command that succeeded?",
+      options: [
+        { text: "`1`", why: "In Linux, `1` (and any non-zero number) means failure." },
+        { text: "`0`", why: "Zero = success. Anything else = some kind of failure." },
+        { text: "`true`", why: "`$?` is always a number." },
+      ],
+      answer: 1,
+    },
+  ]}
+/>

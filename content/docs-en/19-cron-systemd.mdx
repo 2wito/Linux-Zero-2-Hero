@@ -1,0 +1,382 @@
+# Automation: cron and systemd
+
+<Callout type="info" title="What you'll learn">
+- Run tasks at fixed times with **cron** and `crontab`.
+- Read and write **cron syntax** (the five stars).
+- What **systemd** and a **service** are.
+- Manage services with `systemctl`: `start`, `stop`, `enable`, `status`.
+- Write your own **service** and **timer**.
+</Callout>
+
+## The alarm clock and the night guard
+
+There are two kinds of work the computer needs to do by itself:
+
+- **Tasks at fixed times**, like an alarm clock: "every night at 2:00, back up". That's what **cron** and systemd **timers** do.
+- **Programs that run all the time**, like a guard on shift: a web server, a database. They need to start with the computer, and get back up if they fall over. That's what **systemd** does.
+
+## cron: the alarm clock
+
+**cron** is a long-standing service that checks every minute whether there's a task to run. Every user has their own table, the **crontab**:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ crontab -l
+  no crontab for dana
+`}</TerminalWindow>
+
+`-l` (list) shows the table. Right now it's empty. You edit it with `crontab -e`, which opens an editor (the first time it asks which one. Choose `nano`).
+
+### The syntax: five fields and a command
+
+Every line in the crontab is one task: **when** (five fields), and **what** to run:
+
+```text
+┌───────────── minute (0–59)
+│ ┌─────────── hour (0–23)
+│ │ ┌───────── day of month (1–31)
+│ │ │ ┌─────── month (1–12)
+│ │ │ │ ┌───── day of week (0–7, where 0 and 7 are Sunday)
+│ │ │ │ │
+* * * * *  command
+```
+
+`*` means "any value". Here are some examples:
+
+| Line | When |
+| --- | --- |
+| `0 2 * * *` | Every day at 02:00 |
+| `30 8 * * 1-5` | Monday to Friday at 08:30 |
+| `30 8 * * 0-4` | Sunday to Thursday at 08:30 (the work week in Israel) |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9 1 * *` | On the 1st of every month at 09:00 |
+| `0 0 * * 0` | Every Sunday at midnight |
+| `@reboot` | Once, when the computer starts |
+
+<Callout type="tip" title="Check before saving">
+A site like crontab.guru translates any cron line into plain English. It's worth checking a line there before you add it.
+</Callout>
+
+### Experiment: a task that runs every minute
+
+You can also load a crontab from a file. We'll use that to watch cron really work:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "* * * * * date >> /tmp/cron-test.log" > cronfile
+  $ crontab cronfile
+  $ crontab -l
+  * * * * * date >> /tmp/cron-test.log
+`}</TerminalWindow>
+
+Wait for the start of the next minute, and...
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat /tmp/cron-test.log
+  Wed Nov 11 21:12:01 IST 2026
+  $ crontab -r
+  $ crontab -l
+  no crontab for dana
+`}</TerminalWindow>
+
+cron ran `date` right at the start of the minute (21:12:01). Then we deleted the table with `-r` (remove).
+
+<Callout type="warning" title="crontab -r deletes the whole table">
+`-r` deletes **all** your tasks, without asking. And `r` sits right next to `e` on the keyboard. Before making changes, keep a backup: `crontab -l > my-crontab.bak`. If something gets deleted, `crontab my-crontab.bak` brings everything back.
+</Callout>
+
+### Three cron traps
+
+1. **A short `PATH`.** cron doesn't read `~/.bashrc`, so its `PATH` is minimal. Use **full paths**: `/home/dana/scripts/backup.sh`, not `backup.sh`.
+2. **Output disappears.** There's no terminal, so you won't see errors. Redirect the output to a log: `... >> /home/dana/backup.log 2>&1`.
+3. **Percent is a special character.** Inside a crontab, `%` becomes a newline. In `date +%F` you need to write `date +\%F`.
+
+So here's what a real line looks like that runs the backup script from chapter 18 every night at 02:00:
+
+```text title="crontab -e"
+0 2 * * * /home/dana/scripts/backup.sh /home/dana/projects >> /home/dana/backup.log 2>&1
+```
+
+## systemd: the system manager
+
+**systemd** is the first process that starts on the computer (remember PID 1 from chapter 11?). It starts everything else, and watches over it. Everything it manages is called a **unit**, and the most common kind is a **service**: a program that runs in the background.
+
+### A service's state: `systemctl status`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl status cron --no-pager
+  ● cron.service - Regular background program processing daemon
+       Loaded: loaded (/usr/lib/systemd/system/cron.service; enabled; preset: enabled)
+       Active: active (running) since Wed 2026-11-11 21:10:41 IST; 14s ago
+         Docs: man:cron(8)
+     Main PID: 221 (cron)
+        Tasks: 1 (limit: 9306)
+       Memory: 444.0K (peak: 1.5M)
+          CPU: 5ms
+       CGroup: /system.slice/cron.service
+               └─221 /usr/sbin/cron -f -P
+
+  Nov 11 21:10:41 ubuntu systemd[1]: Started cron.service - Regular background program processing daemon.
+  Nov 11 21:10:41 ubuntu cron[221]: (CRON) INFO (pidfile fd = 3)
+  Nov 11 21:10:41 ubuntu cron[221]: (CRON) INFO (Running @reboot jobs)
+`}</TerminalWindow>
+
+The important lines:
+
+- **`Loaded`**: where the configuration file is, and `enabled` says the service **starts automatically** with the computer.
+- **`Active: active (running)`**: it's running now. A green dot `●`. If the service crashed you'd see `failed`, with a red dot.
+- **`Main PID`**: the process's PID.
+- **At the end**: the last lines of the service's log. When a service won't start, the reason usually shows up there.
+
+(`--no-pager` prints everything straight to the screen. Without it, the output opens in `less`, and you exit with <Kbd>q</Kbd>.)
+
+### The `systemctl` commands
+
+| Command | What it does |
+| --- | --- |
+| `systemctl status X` | What the state is, and what the log says |
+| `systemctl start X` | Start it **now** |
+| `systemctl stop X` | Stop it **now** |
+| `systemctl restart X` | Stop and start again (for example after changing settings) |
+| `systemctl enable X` | Start it **automatically on every boot** |
+| `systemctl disable X` | Cancel the automatic start |
+| `systemctl enable --now X` | Both `enable` and `start` |
+| `systemctl list-units --type=service` | All loaded services |
+
+<Callout type="tip" title="start ≠ enable">
+`start` starts the service **now**, but after the computer restarts it won't come up. `enable` makes sure it comes up **on every boot**, but doesn't start it now. Most of the time you want both: `enable --now`.
+</Callout>
+
+Actions on system services require privileges:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl restart cron
+  Failed to restart cron.service: Interactive authentication required.
+  See system logs and 'systemctl status cron.service' for details.
+`}</TerminalWindow>
+
+<Callout type="warning" title="sudo systemctl stop: know what you're stopping">
+`sudo systemctl stop` on a service like `ssh` on a remote server disconnects you, and you won't be able to connect back. `NetworkManager` stops the network. Before stopping or disabling a service, make sure you know what it does.
+</Callout>
+
+On WSL, systemd runs by default on recent Ubuntu versions. macOS has no systemd. There, the equivalent is `launchd`.
+
+## Writing our own service and timer
+
+Now we'll build something real: a service that writes a disk-space report, and a **timer** that triggers it every morning. A timer is systemd's version of cron, with a few advantages: tidy logs, and a task that was missed (because the computer was off) runs when it turns on.
+
+We'll work with **user services** (`--user`), which don't need `sudo`. The files go in `~/.config/systemd/user/`:
+
+```bash
+mkdir -p ~/.config/systemd/user
+```
+
+```ini title="~/.config/systemd/user/disk-report.service"
+[Unit]
+Description=Write a disk usage report
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'date >> %h/disk-report.log; df -h / | tail -1 >> %h/disk-report.log'
+```
+
+- **`[Unit]`**: a description that appears in `status` and in the logs.
+- **`Type=oneshot`**: the service runs once and finishes (rather than running all the time, like a server).
+- **`ExecStart`**: the command. It must use a **full path**. `%h` is the home directory.
+
+```ini title="~/.config/systemd/user/disk-report.timer"
+[Unit]
+Description=Run disk-report every day at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+- **`OnCalendar`**: when. `*-*-* 08:00:00` = every day (year-month-day), at 08:00.
+- **`Persistent=true`**: if the computer was off at 08:00, the task runs when it turns on.
+- **`[Install]`**: what `enable` does. Here, hook the timer into the list of timers that start automatically.
+
+### Turning it on
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user daemon-reload
+  $ systemctl --user start disk-report.service
+  $ systemctl --user status disk-report.service --no-pager
+  ○ disk-report.service - Write a disk usage report
+       Loaded: loaded (/home/dana/.config/systemd/user/disk-report.service; static)
+       Active: inactive (dead)
+
+  Nov 11 21:11:17 ubuntu systemd[409]: Starting disk-report.service - Write a disk usage report...
+  Nov 11 21:11:17 ubuntu systemd[409]: Finished disk-report.service - Write a disk usage report.
+  $ cat ~/disk-report.log
+  Wed Nov 11 21:11:17 IST 2026
+  /dev/sdd       1007G  7.5G  949G   1% /
+`}</TerminalWindow>
+
+1. `daemon-reload`: tells systemd to re-read the configuration files. **Required** after every creation or change of a unit file.
+2. `start`: we started the service manually, to check that it works.
+3. `inactive (dead)` sounds scary, but for a `oneshot` service it's exactly right: it ran, finished (`Finished`), and that's it.
+4. The report was written.
+
+Now enable the timer:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user enable --now disk-report.timer
+  Created symlink /home/dana/.config/systemd/user/timers.target.wants/disk-report.timer → /home/dana/.config/systemd/user/disk-report.timer.
+  $ systemctl --user list-timers --no-pager
+  NEXT                            LEFT LAST PASSED UNIT                           ACTIVATES
+  Wed 2026-11-11 21:16:17 IST 4min 59s -         - launchpadlib-cache-clean.timer launchpadlib-cache-clean.service
+  Thu 2026-11-12 08:00:00 IST      10h -         - disk-report.timer              disk-report.service
+
+  2 timers listed.
+  Pass --all to see loaded but inactive timers, too.
+`}</TerminalWindow>
+
+`list-timers` shows the next run is tomorrow at 08:00, in 10 hours. (`enable` works using a shortcut, a symlink, and that's what the first message is about.)
+
+### Checking time expressions
+
+`systemd-analyze calendar` translates an `OnCalendar` expression and shows when it fires next. It's worth checking before you use one:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemd-analyze calendar 'Mon..Fri 09:30'
+    Original form: Mon..Fri 09:30
+  Normalized form: Mon..Fri *-*-* 09:30:00
+      Next elapse: Thu 2026-11-12 09:30:00 IST
+         (in UTC): Thu 2026-11-12 07:30:00 UTC
+         From now: 12h left
+`}</TerminalWindow>
+
+More expressions: `daily`, `weekly`, `hourly`, `*:0/15` (every 15 minutes) and `Sat *-*-* 10:00` (every Saturday at 10:00).
+
+### A real system service
+
+For a service that needs to run **all the time** (a server, a bot) and start with the computer, the file goes in `/etc/systemd/system/` and is managed with `sudo`. The main differences:
+
+```ini title="/etc/systemd/system/myapp.service"
+[Unit]
+Description=My web app
+After=network.target
+
+[Service]
+User=dana
+WorkingDirectory=/home/dana/myapp
+ExecStart=/usr/bin/python3 -m http.server 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+- **`After=network.target`**: start only after the network is ready.
+- **`User=dana`**: run as a regular user, not as root (the least-privilege principle from chapter 9).
+- **`Restart=on-failure`**: if the program crashes, systemd starts it again.
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now myapp
+systemctl status myapp
+```
+
+## cron or systemd timer?
+
+| | cron | systemd timer |
+| --- | --- | --- |
+| Ease of setup | One line | Two files |
+| Logs | You have to redirect them yourself | Automatic, in `journalctl` (chapter 20) |
+| A task missed while the computer was off | Won't run | `Persistent=true` runs it |
+| Good for... | Simple, quick tasks | Important tasks, servers |
+
+<Exercise title="A cron task">
+Write cron lines for:
+
+1. Running `/home/dana/scripts/cleanup.sh` every Sunday at 03:00.
+2. Running `/home/dana/scripts/check.sh` every 10 minutes.
+3. Running `/home/dana/scripts/report.sh` at 07:30 Monday to Friday, with output and errors written to `/home/dana/report.log`.
+
+<Solution>
+
+```text
+0 3 * * 0 /home/dana/scripts/cleanup.sh
+*/10 * * * * /home/dana/scripts/check.sh
+30 7 * * 1-5 /home/dana/scripts/report.sh >> /home/dana/report.log 2>&1
+```
+
+On line 1, the last `0` is Sunday. On line 3, `1-5` is Monday to Friday. Notice that the minute comes **before** the hour: `30 7` is 07:30.
+</Solution>
+</Exercise>
+
+<Exercise title="A backup timer">
+Given a service called `backup.service`, write a `backup.timer` that triggers it every day at 02:00, and runs a missed backup if the computer was off. How do you turn it on?
+
+<Solution>
+
+```ini title="~/.config/systemd/user/backup.timer"
+[Unit]
+Description=Nightly backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now backup.timer
+systemctl --user list-timers
+```
+
+A timer triggers the service **with the same name** (backup.timer → backup.service), so you don't need to name it explicitly.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`crontab -e` / `-l`", body: "Your task table. Minute, hour, day, month, day of week, and a command with a full path." },
+    { title: "`systemctl status`", body: "Whether a service is running, whether it starts with the computer, and what its log says." },
+    { title: "`start` ≠ `enable`", body: "start = now. enable = on every boot. `enable --now` = both." },
+    { title: "service + timer", body: "What to run, and when. `daemon-reload` after every change to the files." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "When does the task `15 4 * * *` run?",
+      options: [
+        { text: "Every 15 minutes, 4 times a day", why: "The first field is a specific minute, not an interval. An interval is written `*/15`." },
+        { text: "On the 15th of every month, at 04:00", why: "The day of the month is the third field, and here it's `*`." },
+        { text: "Every day at 04:15", why: "Minute 15, hour 4, and everything else `*`." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "You started a service with `systemctl start`, and after restarting the computer it isn't running. Why?",
+      options: [
+        { text: "The service crashed", why: "Not necessarily. `start` simply doesn't affect the next boot." },
+        { text: "You didn't run `enable`", why: "Only `enable` makes the service start on every boot." },
+        { text: "You need to run `daemon-reload` after every boot", why: "`daemon-reload` is only needed after changing unit files." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "A script works when you run it by hand, but not from cron. What's the most likely reason?",
+      options: [
+        { text: "cron uses a minimal `PATH`, and the script calls commands or files without a full path", why: "cron doesn't read `~/.bashrc`. Full paths solve most problems." },
+        { text: "cron can't run scripts", why: "It certainly can. That's its whole job." },
+        { text: "cron needs to be run with sudo", why: "Every user has their own crontab, without sudo." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

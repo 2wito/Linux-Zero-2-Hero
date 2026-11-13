@@ -1,0 +1,256 @@
+# Processes and Jobs
+
+<Callout type="info" title="What you'll learn">
+- What a **process** is and what a **PID** is.
+- See what's running with `ps`, `top` and `htop`.
+- Stop processes with `kill`, and what **signals** are.
+- Run things in the background with `&`, and manage jobs with `jobs`, `fg` and `bg`.
+- The difference between <Kbd keys="Ctrl+C" /> and <Kbd keys="Ctrl+Z" />.
+</Callout>
+
+## A restaurant kitchen
+
+A program stored on disk is like a **recipe** in a book: it does nothing until someone cooks it.
+
+A **process** is a recipe **while it's being cooked**: a program that's running right now, with memory and a place on the processor. You can cook the same recipe several times at once, and each cooking is a separate process.
+
+And the operating system is the head chef: it gives each process an ID number, divides time between them and can stop any of them.
+
+## `ps`: what's running right now?
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ps
+      PID TTY          TIME CMD
+      614 pts/2    00:00:00 bash
+      617 pts/2    00:00:00 ps
+`}</TerminalWindow>
+
+Without options, `ps` shows only the current terminal's processes: the shell (`bash`) and `ps` itself.
+
+- **PID** (Process ID) is the process's ID number. Every process gets a unique number.
+- **TTY** is the terminal the process belongs to.
+- **CMD** is the command that started it.
+
+### Every process on the system: `ps aux`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ps aux | head -5
+  USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+  root           1  0.4  0.1  21652 11964 ?        Ss   20:46   0:00 /sbin/init
+  root           2  0.0  0.0   3072  1760 ?        Sl   20:46   0:00 /init
+  root           6  0.0  0.0   3072  1760 ?        Sl   20:46   0:00 plan9 --control-socket 7 --log-level 4 --server-fd 8 --pipe-fd 10 --log-truncate
+  root          39  0.0  0.1  42164 15360 ?        S<s  20:46   0:00 /usr/lib/systemd/systemd-journald
+`}</TerminalWindow>
+
+- `a` = of all users, `u` = with details, `x` = including processes without a terminal (background services).
+- `| head -5` shows only the first 5 lines. (We'll learn about `|` in the next chapter.)
+- **USER** is the owner, **%CPU** and **%MEM** are how much processor and memory the process uses.
+- **PID 1** is the first process that starts with the computer, and all the others are born from it. (The `/init` and `plan9` lines only appear on WSL.)
+
+Looking for a specific process? Filter with `grep`, or use `pgrep`, which returns just the PID:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ sleep 500 &
+  [1] 622
+  $ ps aux | grep sleep
+  dana         622  0.0  0.0   3124  1600 pts/2    S    20:47   0:00 sleep 500
+  dana         625  0.0  0.0   4088  1760 pts/2    S+   20:47   0:00 grep sleep
+  $ pgrep sleep
+  622
+`}</TerminalWindow>
+
+(`grep` finds itself too, because it's also a process with "sleep" in its command line. And we'll talk about the `&` on the first line in a moment.)
+
+## `top` and `htop`: a live monitor
+
+`ps` is a single photo. `top` is **video**: it refreshes every few seconds and sorts by whoever uses the most processor. Here's one moment of it:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ top -bn1 | head -12
+  top - 20:47:17 up 1 min,  1 user,  load average: 0.30, 0.14, 0.05
+  Tasks:  37 total,   1 running,  36 sleeping,   0 stopped,   0 zombie
+  %Cpu(s):  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+  MiB Mem :   7765.2 total,   6908.3 free,    552.8 used,    457.0 buff/cache
+  MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   7212.3 avail Mem
+
+      PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+        1 root      20   0   21652  11964   9084 S   0.0   0.2   0:00.33 systemd
+        2 root      20   0    3072   1760   1760 S   0.0   0.0   0:00.00 init-sy+
+        6 root      20   0    3072   1760   1760 S   0.0   0.0   0:00.00 init
+       39 root      19  -1   42164  15360  14560 S   0.0   0.2   0:00.05 systemd+
+       88 root      20   0   25340   6240   4800 S   0.0   0.1   0:00.07 systemd+
+`}</TerminalWindow>
+
+The top part is a summary of the whole system: how long it's been up, how many processes there are, and how much processor and memory is in use. (We'll go deeper into `load average` in chapter 25.)
+
+In `top` itself (just type `top`): <Kbd>q</Kbd> quits, <Kbd>M</Kbd> sorts by memory and <Kbd>P</Kbd> by processor.
+
+**`htop`** is a more colorful, friendlier version, with graphs and mouse scrolling. It's installed on Ubuntu, and if it isn't, install it as in chapter 10 (`sudo apt install htop`).
+
+## Stopping processes: `kill` and signals
+
+The name `kill` is misleading. It doesn't necessarily "kill": it **sends a signal**, meaning a message, to a process. The signals worth knowing:
+
+| Signal | Number | Like telling the process | When |
+| --- | --- | --- | --- |
+| `SIGTERM` | 15 | "Please finish up" | `kill`'s default. The process gets to save and clean up |
+| `SIGINT` | 2 | "Stop" | What <Kbd keys="Ctrl+C" /> sends |
+| `SIGKILL` | 9 | A power cut | The process stops immediately, saving nothing. It can't be ignored |
+| `SIGSTOP` | 19 | "Freeze" | A pause. <Kbd keys="Ctrl+Z" /> sends its gentle version |
+
+`kill` with a PID sends `SIGTERM`. `-9` sends `SIGKILL`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ sleep 500 &
+  [1] 712
+  $ pgrep sleep
+  712
+  $ kill 712
+  [1]+  Terminated              sleep 500
+  $ sleep 600 &
+  [1] 726
+  $ kill -9 726
+  [1]+  Killed                  sleep 600
+`}</TerminalWindow>
+
+Notice the difference: `Terminated` (asked to finish) vs. `Killed` (stopped by force).
+
+<Callout type="warning" title="kill -9 is the last resort">
+`SIGKILL` doesn't let the program save files or clean up after itself. A text editor killed this way loses whatever wasn't saved, and a database can get corrupted. Always try a regular `kill` first, wait a few seconds, and only if the process doesn't respond, `kill -9`.
+</Callout>
+
+And you can't stop other people's processes. That takes `sudo`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ kill 1
+  bash: kill: (1) - Operation not permitted
+  $ kill 9999999
+  bash: kill: (9999999) - No such process
+`}</TerminalWindow>
+
+<Callout type="warning" title="sudo kill: check the PID twice">
+With `sudo` you can stop **any** process, including vital system processes. Before `sudo kill`, make sure with `ps` that the PID really belongs to the program you mean.
+</Callout>
+
+There's also a shortcut by name: `pkill firefox` sends `SIGTERM` to every process with that name.
+
+## Foreground and background: `&`, `jobs`, `fg` and `bg`
+
+A regular command runs in the **foreground**: the terminal waits until it finishes. Think of a phone call: while it lasts, you can't talk to anyone else.
+
+An `&` at the end of a command runs it in the **background**, like putting a call on hold: it keeps running, and the terminal is free for more commands.
+
+### <Kbd keys="Ctrl+C" /> vs. <Kbd keys="Ctrl+Z" />
+
+| Shortcut | What happens | Can you continue? |
+| --- | --- | --- |
+| <Kbd keys="Ctrl+C" /> | The command **stops** completely | No |
+| <Kbd keys="Ctrl+Z" /> | The command is **paused** | Yes, with `fg` or `bg` |
+
+Here are all the tools together, in one session:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ sleep 100
+  ^Z
+  [1]+  Stopped                 sleep 100
+  $ jobs
+  [1]+  Stopped                 sleep 100
+  $ bg
+  [1]+ sleep 100 &
+  $ jobs
+  [1]+  Running                 sleep 100 &
+  $ sleep 200 &
+  [2] 477
+  $ jobs
+  [1]-  Running                 sleep 100 &
+  [2]+  Running                 sleep 200 &
+  $ fg %1
+  sleep 100
+  ^C
+  $ kill %2
+  $ jobs
+  [2]+  Terminated              sleep 200
+`}</TerminalWindow>
+
+Step by step:
+
+1. <Kbd keys="Ctrl+Z" /> paused `sleep 100`, and it got job number `[1]`.
+2. `jobs` shows this terminal's jobs.
+3. `bg` (background) resumed it, but in the background. Now it's `Running`.
+4. `sleep 200 &` started straight in the background as job `[2]`. The number `477` is its PID.
+5. `fg %1` (foreground) brought job 1 back to the foreground, and <Kbd keys="Ctrl+C" /> stopped it.
+6. `kill %2` stopped job 2. With `%` you work by **job number** instead of PID.
+
+<Callout type="tip" title="Job number ≠ PID">
+`%1` is a job number, and it only exists in the terminal where you ran it. The PID exists across the whole system. `kill %1` and `kill 477` both work, each in its own way.
+</Callout>
+
+<Callout type="warning" title="Closing the terminal? The jobs close with it">
+Background jobs belong to the terminal. When you close it, they get a signal and shut down. For programs that need to run all the time there's a real solution: systemd services, in chapter 19.
+</Callout>
+
+<Exercise title="Job managers">
+1. Run `sleep 300` and pause it.
+2. Run `sleep 400` straight in the background.
+3. Show the jobs. What's the state of each one?
+4. Resume the first one in the background.
+5. Find the PID of `sleep 400` and stop it by PID.
+6. Stop the first one by job number.
+
+<Solution>
+1. `sleep 300`, then <Kbd keys="Ctrl+Z" />.
+2. `sleep 400 &`.
+3. `jobs`: the first is `Stopped`, the second `Running`.
+4. `bg %1`.
+5. `pgrep -a sleep` shows the PID together with the command. Then `kill` with the number you got, for example `kill 726`.
+6. `kill %1`.
+
+Run `jobs` at the end: once the `Terminated` messages appear, the list is empty.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Process and PID", body: "A program that's running right now, with a unique ID number." },
+    { title: "`ps aux` / `top` / `htop`", body: "A snapshot of every process, or a live monitor that refreshes." },
+    { title: "`kill` / `kill -9`", body: "SIGTERM asks nicely to finish. SIGKILL stops by force, only as a last resort." },
+    { title: "`&`, `jobs`, `fg`, `bg`", body: "Running in the background and managing jobs. Ctrl+C stops, Ctrl+Z pauses." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "A program isn't responding. What's the first step?",
+      options: [
+        { text: "`kill -9` right away", why: "SIGKILL doesn't let the program save. Start with a gentle request." },
+        { text: "A regular `kill` (SIGTERM), and only if that doesn't help, `kill -9`", why: "That gives the program a chance to finish cleanly." },
+        { text: "Restart the computer", why: "No need. You can stop a single process." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You pressed **Ctrl+Z** by mistake. What happened to the command?",
+      options: [
+        { text: "It was deleted", why: "Ctrl+Z doesn't delete anything." },
+        { text: "It stopped completely", why: "That's Ctrl+C. Ctrl+Z only pauses." },
+        { text: "It's paused, and `fg` will bring it back", why: "Exactly. `jobs` will show it as Stopped." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "What does an `&` at the end of a command do?",
+      options: [
+        { text: "Runs it in the background, and the terminal stays free", why: "And you get a job number and a PID." },
+        { text: "Runs it twice", why: "A single `&` at the end means \"in the background\"." },
+        { text: "Runs it with sudo", why: "It has nothing to do with permissions." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

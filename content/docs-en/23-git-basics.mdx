@@ -1,0 +1,444 @@
+# Git on Linux
+
+<Callout type="info" title="What you'll learn">
+- What **Git** is, and why every developer (and everyone who manages configuration files) uses it.
+- Installation and first-time setup.
+- The basic cycle: `init`, `status`, `add`, `commit`, `log`, `diff`.
+- **Branches**: `switch` and `merge`.
+- `.gitignore`, and `restore` to undo changes.
+- Connecting the project to **GitHub** and pushing it with an SSH key.
+</Callout>
+
+## A time machine for a directory
+
+We've all done it: `report.docx`, `report-final.docx`, `report-final-2.docx`, `report-REALLY-final.docx`. And a week later nobody remembers the difference between the files.
+
+**Git** solves that. It's a **time machine** for a directory: whenever you reach a good point, you "snapshot" the state of all the files, with a short explanation. You can see what changed between two snapshots, go back to any old snapshot, and work on several ideas in parallel without mixing them up.
+
+A few concepts before we start:
+
+| Concept | What it is |
+| --- | --- |
+| **repository** | A directory Git keeps track of. The history is stored in a hidden subdirectory, `.git` |
+| **commit** | A "snapshot" of the files' state, with a message explaining what changed |
+| **branch** | A separate line of development, for trying something without touching the main version |
+| **remote** | A copy of the repository on another server, for example on GitHub |
+
+Git was created in 2005 by Linus Torvalds, the same person who created Linux, to manage the kernel's code.
+
+## Installation and setup
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install git
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install git
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S git
+```
+
+</Distro>
+<Distro id="macos">
+
+The first time you run `git`, macOS offers to install the Command Line Tools, which include it. You can also use `brew install git`.
+
+</Distro>
+</DistroTabs>
+
+Before the first commit, tell Git who you are. The name and email appear in every commit you create:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ git --version
+  git version 2.43.0
+  $ git config --global user.name "Dana Cohen"
+  $ git config --global user.email "dana@example.com"
+  $ git config --global init.defaultBranch main
+  $ git config --global --list
+  user.name=Dana Cohen
+  user.email=dana@example.com
+  init.defaultbranch=main
+`}</TerminalWindow>
+
+- `--global` saves the settings for all your repositories, in the `~/.gitconfig` file. You do this **once**.
+- `init.defaultBranch main`: call the main branch `main` (that's the common name today, and what GitHub expects).
+
+## The first repository
+
+Let's build a repository of recipes:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir recipes && cd recipes
+  $ git init
+  Initialized empty Git repository in /home/dana/recipes/.git/
+  $ git status
+  On branch main
+
+  No commits yet
+
+  nothing to commit (create/copy files and use "git add" to track)
+`}</TerminalWindow>
+
+`git init` turned the directory into a repository. `git status` is the most important command: it always tells you **where you are**, and what to do next. When you get confused, run `git status`.
+
+### Three areas
+
+To understand `add` and `commit`, think of a family photo:
+
+1. The **working directory**: the whole family in the living room. Here you edit files as usual.
+2. The **staging area**: whoever is standing in front of the camera. `git add` invites a file into the picture.
+3. The **history** (repository): `git commit` presses the button. Whoever stood in front of the camera is saved for good.
+
+Why do you need a middle step? Because sometimes you changed five files, and want to save only two of them as one logical "snapshot".
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "# My Recipes" > README.md
+  $ echo "flour, sugar, eggs" > cake.txt
+  $ git status
+  On branch main
+
+  No commits yet
+
+  Untracked files:
+    (use "git add <file>..." to include in what will be committed)
+  	README.md
+  	cake.txt
+
+  nothing added to commit but untracked files present (use "git add" to track)
+  $ git add README.md cake.txt
+  $ git status
+  On branch main
+
+  No commits yet
+
+  Changes to be committed:
+    (use "git rm --cached <file>..." to unstage)
+  	new file:   README.md
+  	new file:   cake.txt
+
+  $ git commit -m "Add README and cake recipe"
+  [main (root-commit) 16675ee] Add README and cake recipe
+   2 files changed, 2 insertions(+)
+   create mode 100644 README.md
+   create mode 100644 cake.txt
+`}</TerminalWindow>
+
+1. **`Untracked files`**: Git sees new files, but isn't tracking them.
+2. After `git add`: **`Changes to be committed`**. They're in front of the camera.
+3. **`git commit -m "..."`**: the snapshot is saved. `16675ee` is the commit's **ID** (the start of a long, unique string).
+
+<Callout type="tip" title="A good commit message">
+Write **what** the change does, briefly and in the imperative: "Add cake recipe", "Fix typo in README". Not "update" and not "changes". Six months from now, these messages will be your only way to understand what happened. `git add .` adds **all** the changes in the directory, which is convenient, but check with `git status` first what's going in.
+</Callout>
+
+## What changed? `diff` and `log`
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "bake 30 minutes at 180C" >> cake.txt
+  $ git status --short
+   M cake.txt
+  $ git diff
+  diff --git a/cake.txt b/cake.txt
+  index 7bf7802..2c53eb3 100644
+  --- a/cake.txt
+  +++ b/cake.txt
+  @@ -1 +1,2 @@
+   flour, sugar, eggs
+  +bake 30 minutes at 180C
+  $ git add cake.txt
+  $ git commit -m "Add baking instructions"
+  [main 675551c] Add baking instructions
+   1 file changed, 1 insertion(+)
+`}</TerminalWindow>
+
+- `status --short`: a short version. `M` = modified, `??` = a new file Git isn't tracking.
+- `git diff` shows **exactly** what changed and hasn't been added yet: lines with `+` were added, and lines with `-` were removed.
+
+The history:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git log
+  commit 675551cfc9c58f4f85ded84b9b1c9e7d9eb9c994 (HEAD -> main)
+  Author: Dana Cohen <dana@example.com>
+  Date:   Wed Nov 11 21:19:27 2026 +0200
+
+      Add baking instructions
+
+  commit 16675eef5dbc1412191de04dc004e2be70c24601
+  Author: Dana Cohen <dana@example.com>
+  Date:   Wed Nov 11 21:19:23 2026 +0200
+
+      Add README and cake recipe
+  $ git log --oneline
+  675551c (HEAD -> main) Add baking instructions
+  16675ee Add README and cake recipe
+`}</TerminalWindow>
+
+Each commit: ID, who, when and what. Newest on top. **`HEAD`** means "you are here". `--oneline` shows one line per commit, and it's the version you'll use most of the time. (If the output is long, Git opens it in `less`. Exit with <Kbd>q</Kbd>.)
+
+## Branches: a parallel world
+
+Want to try a new recipe without ruining the recipe book that works? Open a **branch**: a parallel copy of the history that you can work on freely. If the experiment works, you merge it back. If not, you just delete it.
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git switch -c pizza
+  Switched to a new branch 'pizza'
+  $ echo "dough, tomato, cheese" > pizza.txt
+  $ git add pizza.txt
+  $ git commit -m "Add pizza recipe"
+  [pizza a5a0e36] Add pizza recipe
+   1 file changed, 1 insertion(+)
+   create mode 100644 pizza.txt
+  $ git branch
+    main
+  * pizza
+  $ ls
+  README.md  cake.txt  pizza.txt
+  $ git switch main
+  Switched to branch 'main'
+  $ ls
+  README.md  cake.txt
+`}</TerminalWindow>
+
+- `git switch -c pizza`: create (`-c`) a new branch and switch to it.
+- `git branch`: the list of branches. `*` marks the current one.
+- Notice the magic: when we went back to `main`, the file `pizza.txt` **disappeared** from the directory. It wasn't deleted; it simply belongs to the other branch. Git swaps the files in the directory according to the branch.
+
+### Merging: `merge`
+
+The pizza worked out? Merge it into the main branch:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git merge pizza
+  Updating 675551c..a5a0e36
+  Fast-forward
+   pizza.txt | 1 +
+   1 file changed, 1 insertion(+)
+   create mode 100644 pizza.txt
+  $ git log --oneline --graph
+  * a5a0e36 (HEAD -> main, pizza) Add pizza recipe
+  * 675551c Add baking instructions
+  * 16675ee Add README and cake recipe
+  $ git branch -d pizza
+  Deleted branch pizza (was a5a0e36).
+`}</TerminalWindow>
+
+`Fast-forward`: since we created the branch, nothing changed on `main`, so Git simply "moved it forward". If both branches changed **the same line**, Git stops and asks you to decide what stays. That's called a **merge conflict**, and `git status` explains what to do.
+
+`branch -d` deletes a branch that's already been merged. Its work isn't lost: it's already in `main`.
+
+## Files you don't save: `.gitignore`
+
+Some files must never go into the repository: passwords, keys, temporary files and huge auto-generated directories. List them in `.gitignore`:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "secret=1234" > .env
+  $ echo ".env" > .gitignore
+  $ git status --short
+  ?? .gitignore
+`}</TerminalWindow>
+
+`.env` doesn't appear in `status`: Git ignores it. The `.gitignore` itself does get committed, so everyone working on the project gets the same rules.
+
+<Callout type="danger" title="A secret that gets committed stays in the history">
+If a password or key went into a commit, deleting the file afterwards **isn't enough**: it's still stored in the history, and anyone with a copy of the repository can pull it out. And if the repository is already on GitHub, bots scan it within minutes. The only fix is to **change the password or key immediately**. That's why you write `.gitignore` **before** the first commit.
+</Callout>
+
+## Undoing changes: `restore`
+
+Changed a file and regret it? `git restore` returns it to the state of the last commit:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo oops >> cake.txt
+  $ git restore cake.txt
+  $ git status --short
+  ?? .gitignore
+`}</TerminalWindow>
+
+`cake.txt` no longer shows up as "modified". The change was undone.
+
+<Callout type="warning" title="restore throws away unsaved changes">
+`git restore` throws away what you changed since the last commit, and it doesn't come back: Git never saved those changes. `git reset --hard` and `git clean -fd`, which you'll find on forums, also delete work permanently. Before any of them, run `git status` and `git diff` to see what's about to go.
+</Callout>
+
+| You want to... | Command |
+| --- | --- |
+| Undo a change to a file you haven't `add`ed yet | `git restore file` |
+| Take a file out of the staging area (without losing the change) | `git restore --staged file` |
+| See a file as it was in an old commit | `git show 16675ee:cake.txt` |
+| Undo a commit that's already on GitHub | `git revert <id>` (creates a new commit that reverses it) |
+
+## GitHub: the repository in the cloud
+
+**GitHub** (and also GitLab and Bitbucket) is a service that keeps a copy of your repository on the internet: for backup, sharing and collaboration. Git is the tool; GitHub is one of the places you keep things.
+
+### `clone`: copying an existing repository
+
+`git clone` downloads a full copy of a repository, including all its history:
+
+```bash
+git clone https://github.com/torvalds/linux.git
+```
+
+(That, by the way, is the repository of the Linux kernel itself. It's huge: several gigabytes.) `clone` also works with a local repository, so you can try it right away:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ git clone recipes recipes-copy
+  Cloning into 'recipes-copy'...
+  done.
+  $ ls recipes-copy
+  README.md  cake.txt  pizza.txt
+`}</TerminalWindow>
+
+### Pushing your project
+
+Now let's put `recipes` on GitHub. Right now the repository has nowhere to push to:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git remote -v
+  $ git push
+  fatal: No configured push destination.
+  Either specify the URL from the command-line or configure a remote repository using
+
+      git remote add <name> <url>
+
+  and then push using the remote name
+
+      git push <name>
+`}</TerminalWindow>
+
+`git remote -v` returned nothing: there's no remote. Here's the whole process, step by step:
+
+<Steps>
+
+### Add your SSH key to GitHub
+
+In chapter 22 we created a key. Show the **public** part, and copy it:
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+On GitHub: **Settings** → **SSH and GPG keys** → **New SSH key**, and paste it.
+
+### Test the connection
+
+```bash
+ssh -T git@github.com
+```
+
+The first time, the `authenticity of host` question we met in chapter 16 appears. It's worth checking that the fingerprint is on GitHub's official list (in their docs, under "GitHub's SSH key fingerprints"), and only then answering `yes`. If all is well, GitHub says hello with your username.
+
+### Create an empty repository on GitHub
+
+Click **New repository**, give it a name (`recipes`), and **don't** tick "Add a README", because we already have one.
+
+### Connect and push
+
+```bash
+git remote add origin git@github.com:dana/recipes.git
+git push -u origin main
+```
+
+- `remote add origin ...`: save the repository's address under the name `origin` (the usual name). Replace `dana` with your GitHub username.
+- `push -u origin main`: upload the `main` branch. `-u` remembers the connection, so next time `git push` is enough.
+
+</Steps>
+
+From now on, the daily cycle is:
+
+```bash
+git pull
+# ...work, edit files...
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+`git pull` downloads changes that others (or you, from another computer) pushed. It's worth starting every workday with it.
+
+<Callout type="warning" title="git push --force">
+`git push --force` overwrites the history on GitHub with your local history. If someone else pushed in the meantime, their work is deleted. On a shared branch, never. And if you really must, `--force-with-lease` is safer: it fails if there are changes you haven't seen.
+</Callout>
+
+<Exercise title="A settings repository">
+1. Create a repository called `dotfiles`, and copy `~/.bashrc` into it.
+2. Make a first commit.
+3. Add a new alias to the file in the repository, and see the change with `git diff`.
+4. Make a second commit, and show the history with one line per commit.
+
+<Solution>
+
+```bash
+mkdir ~/dotfiles && cd ~/dotfiles
+git init
+cp ~/.bashrc bashrc
+git add bashrc
+git commit -m "Add bashrc"
+echo "alias ll='ls -alF'" >> bashrc
+git diff
+git add bashrc
+git commit -m "Add ll alias"
+git log --oneline
+```
+
+In `git diff` you'll see one line with `+` at the end of the file. That's how you maintain configuration files: every change is recorded, and you can go back to any version.
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "`status` → `add` → `commit`", body: "What changed, what goes into the snapshot, and taking it with a clear message." },
+    { title: "`log` / `diff`", body: "The history (`--oneline`), and exactly what changed on each line." },
+    { title: "`switch -c` / `merge`", body: "A branch for every experiment, and merging it back when it's ready." },
+    { title: "`remote` / `push` / `pull`", body: "Connecting to GitHub with an SSH key, and uploading and downloading changes." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You changed three files, and want only one of them in the next commit. What do you do?",
+      options: [
+        { text: "`git commit -m \"...\"` right away", why: "commit saves only what's in the staging area. You need to add the file first." },
+        { text: "`git add` just that file, then `git commit`", why: "That's exactly what the staging area is for." },
+        { text: "`git add .` then `git commit`", why: "`.` adds every change in the directory." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "You accidentally committed a file with a password and pushed it to GitHub. What's the most important thing to do?",
+      options: [
+        { text: "Change the password immediately", why: "It's already in the history, and bots scan GitHub nonstop." },
+        { text: "Delete the file and make a new commit", why: "The file stays in the history, and anyone can pull it out." },
+        { text: "Add the file to `.gitignore`", why: "`.gitignore` only affects files that haven't entered the repository yet." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "What does `git switch -c experiment` do?",
+      options: [
+        { text: "Deletes the `experiment` branch", why: "Deleting is `git branch -d`." },
+        { text: "Merges `experiment` into the current branch", why: "Merging is `git merge`." },
+        { text: "Creates a new branch called `experiment` and switches to it", why: "`-c` = create." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

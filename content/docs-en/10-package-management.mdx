@@ -1,0 +1,395 @@
+# Managing Software and Packages
+
+<Callout type="info" title="What you'll learn">
+- What a **package**, a **package manager** and a **repository** are.
+- Search, install, update and remove software with `apt`, `dnf` and `pacman`.
+- The difference between `update` and `upgrade`.
+- What **dependencies** are.
+- In short: Snap and Flatpak.
+</Callout>
+
+## An app store, terminal edition
+
+On your phone you don't download apps from random websites. You go to the store, search, tap "Install", and the store also takes care of updates.
+
+Linux works the same way, and did long before smartphones existed:
+
+- A **package** is software packed into one file, ready to install.
+- A **repository** is "the store's shelf": a server holding thousands of packages the distro has checked.
+- The **package manager** is "the store app": it searches, downloads, installs, updates and removes.
+
+Each distro family has its own package manager: `apt` on Debian/Ubuntu, `dnf` on Fedora/RHEL and `pacman` on Arch. The ideas are identical; only the words differ.
+
+## Searching for software
+
+Let's look for `cowsay`, a small, fun program that draws a talking cow:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt search --names-only '^cowsay'
+  Sorting... Done
+  Full Text Search... Done
+  cowsay/noble,noble 3.03+dfsg2-8 all
+    configurable talking cow
+
+  cowsay-off/noble,noble 3.03+dfsg2-8 all
+    configurable talking cow (offensive cows)
+`}</TerminalWindow>
+
+- `search` searches the repositories. Without `--names-only` it also searches descriptions, and returns many more results.
+- `'^cowsay'` means "names that start with cowsay". (`^` is part of regex, which we'll meet in chapter 13.)
+- Each result shows the package name, the repository (`noble` is Ubuntu 24.04's code name), the version and a short description.
+
+For full details on one package, `apt show`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt show cowsay
+  Package: cowsay
+  Version: 3.03+dfsg2-8
+  Priority: optional
+  Section: universe/games
+  Origin: Ubuntu
+  Installed-Size: 93.2 kB
+  Depends: libtext-charwidth-perl, perl:any
+  Download-Size: 18.6 kB
+  APT-Sources: http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages
+  Description: configurable talking cow
+  ...
+`}</TerminalWindow>
+
+(We shortened the output.) Notice the `Depends` line; we'll come back to it in a moment.
+
+## Installing
+
+Try installing without `sudo`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt install cowsay
+  E: Could not open lock file /var/lib/dpkg/lock-frontend - open (13: Permission denied)
+  E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), are you root?
+`}</TerminalWindow>
+
+`are you root?`: installing software changes the system for all users, so it needs administrator rights. Also, in apt an `E:` at the start of a line means Error.
+
+<Callout type="warning" title="sudo: only from sources you trust">
+Installing with `sudo` gives the package full root privileges. Install from your distro's official repositories, and don't add repositories or run install scripts from sites you don't know.
+</Callout>
+
+The commands for your distro:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update
+sudo apt install cowsay
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install cowsay
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S cowsay
+```
+
+</Distro>
+<Distro id="wsl">
+
+On WSL with Ubuntu, exactly as on Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install cowsay
+```
+
+</Distro>
+<Distro id="macos">
+
+macOS has no built-in package manager. The popular one is **Homebrew** (install it following the instructions at brew.sh), and then:
+
+```bash
+brew install cowsay
+```
+
+</Distro>
+</DistroTabs>
+
+On Ubuntu, `apt install` shows a list of what will be installed and asks `Do you want to continue? [Y/n]`. Press <Kbd>Enter</Kbd> (the uppercase `Y` is the default), and that's it:
+
+```bash
+cowsay "Hello"
+```
+
+### "Hang on, just install it for me"
+
+Good to know: if you type a command on Ubuntu that isn't installed, the system tells you which package you need:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cowsay hi
+  Command 'cowsay' not found, but can be installed with:
+  sudo apt install cowsay
+`}</TerminalWindow>
+
+## Dependencies
+
+Most software doesn't stand alone. It uses libraries and other programs, like a recipe that needs both flour and eggs. Those are the **dependencies**.
+
+In `apt show` we saw that cowsay depends on `perl`. The package manager sorts that out by itself: it installs everything that's missing, in the right order. You can see what it **would do** without changing anything, with `-s` (simulate):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt-get install -s cowsay
+  NOTE: This is only a simulation!
+        apt-get needs root privileges for real execution.
+        Keep also in mind that locking is deactivated,
+        so don't depend on the relevance to the real current situation!
+  Reading package lists...
+  Building dependency tree...
+  Reading state information...
+  Suggested packages:
+    filters cowsay-off
+  The following NEW packages will be installed:
+    cowsay
+  0 upgraded, 1 newly installed, 0 to remove and 52 not upgraded.
+  Inst cowsay (3.03+dfsg2-8 Ubuntu:24.04/noble [all])
+  Conf cowsay (3.03+dfsg2-8 Ubuntu:24.04/noble [all])
+`}</TerminalWindow>
+
+Here `perl` is already installed, so only cowsay itself is new. `Suggested packages` are recommendations that won't be installed automatically. And `52 not upgraded` says 52 packages are waiting for an update. We'll get to that right away.
+
+## Updates: `update` vs. `upgrade`
+
+This is beginners' most common confusion, because the words sound the same:
+
+| Command | What it does | In the store |
+| --- | --- | --- |
+| `apt update` | Downloads the up-to-date **list** of what's in the repositories | Refreshing the catalog |
+| `apt upgrade` | **Installs** the new versions of what you already have | Updating the apps |
+
+`update` doesn't update any software. That's why you always run both, in that order. You can see what's waiting for an update:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt list --upgradable
+  Listing... Done
+  apparmor/noble-updates 4.0.1really4.0.1-0ubuntu0.24.04.7 amd64 [upgradable from: 4.0.1really4.0.1-0ubuntu0.24.04.4]
+  apport-core-dump-handler/noble-updates,noble-updates 2.28.3-0ubuntu0.1 all [upgradable from: 2.28.1-0ubuntu3.8]
+  apport/noble-updates,noble-updates 2.28.3-0ubuntu0.1 all [upgradable from: 2.28.1-0ubuntu3.8]
+  ...
+`}</TerminalWindow>
+
+And here's how to update the whole system:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update
+sudo apt upgrade
+```
+
+</Distro>
+<Distro id="fedora">
+
+With `dnf` the list refreshes automatically, so one command is enough:
+
+```bash
+sudo dnf upgrade
+```
+
+</Distro>
+<Distro id="arch">
+
+`-Syu` is three things together: sync (S), refresh the list (y) and upgrade everything (u):
+
+```bash
+sudo pacman -Syu
+```
+
+</Distro>
+<Distro id="wsl">
+
+```bash
+sudo apt update
+sudo apt upgrade
+```
+
+</Distro>
+<Distro id="macos">
+
+```bash
+brew update
+brew upgrade
+```
+
+</Distro>
+</DistroTabs>
+
+<Callout type="tip" title="Update regularly">
+Most updates are security fixes. An unpatched system is the most common way in for attackers. We'll come back to this in chapter 22.
+</Callout>
+
+## What do I have installed?
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt list --installed curl
+  Listing... Done
+  curl/noble-updates,noble-security,now 8.5.0-2ubuntu10.12 amd64 [installed]
+  N: There is 1 additional version. Please use the '-a' switch to see it
+`}</TerminalWindow>
+
+`[installed]` says curl is installed, and which version. Without a package name, `apt list --installed` shows **every** package. A standard Ubuntu install has more than a thousand.
+
+## Removing
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt remove cowsay
+sudo apt autoremove
+```
+
+`remove` removes the program. `autoremove` cleans up dependencies that were installed for it and that nothing needs anymore.
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf remove cowsay
+```
+
+</Distro>
+<Distro id="arch">
+
+`-Rs` also removes dependencies that nothing else needs:
+
+```bash
+sudo pacman -Rs cowsay
+```
+
+</Distro>
+<Distro id="wsl">
+
+```bash
+sudo apt remove cowsay
+sudo apt autoremove
+```
+
+</Distro>
+<Distro id="macos">
+
+```bash
+brew uninstall cowsay
+```
+
+</Distro>
+</DistroTabs>
+
+<Callout type="warning" title="Read the list before Y">
+`apt remove` and `autoremove` show what's about to be removed and ask before continuing. Read the list. If it's long and surprising (for example, it includes the desktop), answer `n`.
+</Callout>
+
+## Reference: the three package managers
+
+| Action | `apt` | `dnf` | `pacman` |
+| --- | --- | --- | --- |
+| Refresh the list | `apt update` | (automatic) | `pacman -Sy` |
+| Upgrade everything | `apt upgrade` | `dnf upgrade` | `pacman -Syu` |
+| Search | `apt search X` | `dnf search X` | `pacman -Ss X` |
+| Info | `apt show X` | `dnf info X` | `pacman -Si X` |
+| Install | `apt install X` | `dnf install X` | `pacman -S X` |
+| Remove | `apt remove X` | `dnf remove X` | `pacman -R X` |
+
+(Commands that change the system need `sudo`.)
+
+## Snap and Flatpak in short
+
+Sometimes a program isn't in the repository, or the version there is old. That's what **Snap** (by Canonical, installed on Ubuntu) and **Flatpak** (popular on Fedora) are for. They package the software **together with all its dependencies**, so it works on any distro.
+
+```bash
+snap find vlc
+sudo snap install vlc
+snap list
+```
+
+The upside: up-to-date versions, and the same package on every distro. The downside: bigger files, and sometimes slower startup. For most things, the regular package manager is the first choice. (We already met such a case in chapter 8, with `tldr`.)
+
+## Where do packages come from?
+
+The repository list on Ubuntu 24.04 lives in `/etc/apt/sources.list.d/ubuntu.sources`. You don't need to edit it. It's enough to know it exists, and that every `apt update` reads from it.
+
+<Callout type="warning" title="External repositories (PPAs) and curl | bash">
+You'll run into instructions like "add this PPA" or `curl ... | sudo bash`. Both let an outside party install code with root privileges. Only do it with well-known, official projects (for example Docker or Node.js from their official sites).
+</Callout>
+
+<Exercise title="A tour of the store">
+1. Search for a package called `sl` with `apt search --names-only '^sl$'`. What's its description?
+2. Check its size with `apt show sl`.
+3. Check what `apt` would do to install it, without actually installing.
+4. (If you have `sudo`) install it, run `sl`, and then remove it.
+
+<Solution>
+1. The description is "Correct you if you type `sl` by mistake". `sl` is "Steam Locomotive": a train that crosses the screen when you type `sl` instead of `ls` by mistake.
+2. In the `Installed-Size` (60.4 kB) and `Download-Size` (12.7 kB) lines.
+3. `apt-get install -s sl`. The `-s` is a simulation, so there's no need for `sudo`.
+4. In this order:
+
+```bash
+sudo apt install sl
+sl
+sudo apt remove sl
+```
+
+</Solution>
+</Exercise>
+
+## Summary
+
+<RecapCards
+  title="What we learned"
+  items={[
+    { title: "Package and repository", body: "Packed software, and an official \"shelf\" the package manager downloads it from." },
+    { title: "`apt` / `dnf` / `pacman`", body: "The same ideas in all three families: search, install, remove, upgrade." },
+    { title: "`update` ≠ `upgrade`", body: "update refreshes the list. upgrade installs the new versions." },
+    { title: "Dependencies", body: "The package manager installs everything a program needs by itself." },
+  ]}
+/>
+
+## Quick quiz
+
+<MiniQuiz
+  questions={[
+    {
+      q: "You ran `sudo apt update`. What happened to your software?",
+      options: [
+        { text: "It was updated to the latest version", why: "That takes `apt upgrade`." },
+        { text: "Nothing. Only the package list was refreshed", why: "update refreshes the catalog. Now `upgrade` will know what's new." },
+        { text: "It was removed", why: "update doesn't remove anything." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "How do you install a package on Fedora?",
+      options: [
+        { text: "`sudo dnf install X`", why: "Fedora belongs to the Red Hat family, which uses `dnf`." },
+        { text: "`sudo pacman -S X`", why: "`pacman` is Arch's." },
+        { text: "`sudo apt install X`", why: "`apt` belongs to the Debian family." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "Why does `apt install` fail without `sudo`?",
+      options: [
+        { text: "Because there's no internet", why: "The error says `are you root?`, meaning a permissions problem." },
+        { text: "Because the package doesn't exist", why: "Then you'd see `Unable to locate package`." },
+        { text: "Because installing changes the system for all users, which requires root privileges", why: "That's why you install with `sudo`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>
