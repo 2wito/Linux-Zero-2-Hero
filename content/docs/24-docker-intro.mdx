@@ -1,0 +1,301 @@
+# מבוא ל-Docker
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **קונטיינר**, ובמה הוא שונה ממכונה וירטואלית.
+- **image** מול **container**.
+- הפקודות הבסיסיות: `docker run`, `ps`, `images`, `logs`, `stop`, `rm`.
+- לכתוב **Dockerfile** ראשון ולבנות image משלכם.
+- לשמור מידע מחוץ לקונטיינר עם **volumes**.
+</Callout>
+
+## מכולות בנמל
+
+לפני שהמציאו את מכולת השילוח, כל נמל העמיס סחורה בדרך אחרת: שקים, חביות, ארגזים בכל הגדלים. היה איטי, ודברים נשברו.
+
+המכולה הסטנדרטית שינתה הכול: לא משנה מה בפנים, למכולה יש אותו גודל ואותם ווים, וכל אונייה, משאית ומנוף יודעים לטפל בה.
+
+**Docker** עושה את זה לתוכנות. **קונטיינר** (container, "מכולה") אורז תוכנה **יחד עם כל מה שהיא צריכה**: הספריות, הגרסאות וההגדרות. הקונטיינר רץ אותו דבר על המחשב שלכם, על המחשב של חבר ועל שרת בענן. נגמר ה"אבל אצלי זה עובד".
+
+## קונטיינר מול מכונה וירטואלית
+
+בפרק 3 הכרנו מכונה וירטואלית: מחשב שלם, מדומה, עם מערכת הפעלה משלו. קונטיינר הוא משהו קל הרבה יותר:
+
+| | מכונה וירטואלית | קונטיינר |
+| --- | --- | --- |
+| מה רץ בפנים | מערכת הפעלה שלמה, כולל ליבה | רק התוכנה והספריות שלה |
+| הליבה | ליבה נפרדת לכל מכונה | **משתמש בליבה של המחשב המארח** |
+| זמן עלייה | דקות | שניות, ולפעמים פחות |
+| גודל | ג'יגה-בייטים | לרוב עשרות עד מאות מגה-בייטים |
+| בידוד | חזק מאוד | טוב, אבל פחות מ-VM |
+
+תחשבו על בניין: מכונה וירטואלית היא **בית פרטי** נפרד, עם יסודות, צנרת וחשמל משלו. קונטיינר הוא **דירה** בבניין משותף: יש לה דלת ומנעול משלה, אבל היסודות והצנרת (הליבה) משותפים. בגלל זה קונטיינרים הם טכנולוגיה של **לינוקס**: הם בנויים על יכולות של ליבת לינוקס, שמפרידות בין תהליכים.
+
+## image ו-container
+
+שני המושגים שהכי חשוב לא לבלבל:
+
+- **image** הוא **מתכון קפוא**: תבנית לקריאה בלבד, עם מערכת קבצים ותוכנה מוכנה. למשל, `nginx` (שרת אינטרנט) או `python:3.12`.
+- **container** הוא **מנה מבושלת** מהמתכון: עותק רץ של image. מאותו image אפשר להריץ עשרה קונטיינרים במקביל.
+
+את ה-images מורידים מ-**Docker Hub**, ספרייה ציבורית של images מוכנים.
+
+## התקנה
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+הדרך המומלצת היא לפי ההוראות הרשמיות באתר של Docker (docs.docker.com, תחת "Install Docker Engine on Ubuntu"), שמוסיפות את המאגר הרשמי שלהם. יש גם חבילה במאגר של Ubuntu, שמתקינה גרסה מעט ישנה יותר:
+
+```bash
+sudo apt install docker.io
+```
+
+</Distro>
+<Distro id="fedora">
+
+מתקינים לפי ההוראות הרשמיות באתר של Docker (docs.docker.com, תחת "Install Docker Engine on Fedora"), ואז:
+
+```bash
+sudo systemctl enable --now docker
+```
+
+ב-Fedora קיים גם **Podman** (`sudo dnf install podman`), תחליף ל-Docker עם אותן פקודות (`podman run ...`).
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S docker
+sudo systemctl enable --now docker
+```
+
+</Distro>
+<Distro id="wsl">
+
+מתקינים **Docker Desktop** ב-Windows, ובהגדרות שלו מפעילים **Settings** → **Resources** → **WSL integration** עבור ההפצה שלכם. מעכשיו הפקודה `docker` עובדת גם מתוך Ubuntu.
+
+</Distro>
+<Distro id="macos">
+
+מתקינים **Docker Desktop** for Mac. הוא מריץ מכונת לינוקס קטנה ברקע, כי קונטיינרים צריכים ליבת לינוקס.
+
+</Distro>
+</DistroTabs>
+
+בלינוקס, `docker` דורשת `sudo`. כדי לעבוד בלעדיה, מוסיפים את עצמכם לקבוצה `docker`, ומתחברים מחדש:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+<Callout type="warning" title="הקבוצה docker = הרשאות root">
+מי שבקבוצה `docker` יכול להריץ קונטיינר שמעגן את כל הדיסק של המחשב, ולשנות בו הכול. זה שקול ל-`sudo` בלי סיסמה. הוסיפו לקבוצה רק משתמשים שהייתם נותנים להם `sudo` בכל מקרה.
+</Callout>
+
+בודקים שהכול עובד:
+
+```bash
+docker run hello-world
+```
+
+Docker תחפש את ה-image `hello-world` במחשב, לא תמצא, **תוריד** אותו מ-Docker Hub, תריץ ממנו קונטיינר, והוא ידפיס הודעת "Hello from Docker!" שמסבירה בדיוק את השלבים האלה, ויסתיים.
+
+## הקונטיינר הראשון שעושה משהו
+
+נריץ שרת אינטרנט, **nginx**, ברקע:
+
+```bash
+docker run -d --name web -p 8080:80 nginx
+```
+
+| חלק | משמעות |
+| --- | --- |
+| `run` | צור קונטיינר מ-image והפעל אותו |
+| `-d` | ברקע (detached), כמו `&` מפרק 11 |
+| `--name web` | שם לקונטיינר, כדי שלא נצטרך לזכור את המזהה שלו |
+| `-p 8080:80` | **פורט**: מה שמגיע לפורט 8080 במחשב שלכם, יועבר לפורט 80 בתוך הקונטיינר |
+| `nginx` | ה-image |
+
+`-p` הוא החלק שהכי מבלבל: **מחשב:קונטיינר**. בתוך הקונטיינר, nginx מאזין לפורט 80, אבל הקונטיינר מבודד, ובלי `-p` אי אפשר להגיע אליו מבחוץ.
+
+פתחו בדפדפן את `http://localhost:8080` (או, כמו בפרק 16, `curl http://localhost:8080`), ותראו את דף הפתיחה של nginx: "Welcome to nginx!".
+
+## הפקודות היומיומיות
+
+```bash
+docker ps
+docker ps -a
+docker images
+docker logs web
+docker logs -f web
+docker exec -it web bash
+docker stop web
+docker start web
+docker rm web
+docker rmi nginx
+```
+
+| פקודה | מה היא עושה |
+| --- | --- |
+| `docker ps` | הקונטיינרים **שרצים** עכשיו: מזהה, image, פורטים ושם |
+| `docker ps -a` | **כל** הקונטיינרים, גם אלה שנעצרו |
+| `docker images` | ה-images שהורדתם, וכמה מקום הם תופסים |
+| `docker logs web` | הפלט של הקונטיינר (`-f` לעקוב, כמו ב-`journalctl -f`) |
+| `docker exec -it web bash` | פותחת טרמינל **בתוך** קונטיינר שרץ. יוצאים עם `exit` |
+| `docker stop` / `start` | עוצרת / מפעילה מחדש |
+| `docker rm web` | מוחקת קונטיינר עצור |
+| `docker rmi nginx` | מוחקת image |
+
+<Callout type="tip" title="קונטיינר הוא חד-פעמי">
+קונטיינר לא נועד "להיות מתוחזק" כמו שרת. כשרוצים גרסה חדשה, לא מעדכנים את הקונטיינר: **מוחקים אותו ויוצרים חדש** מ-image מעודכן. לכן כל מה שחשוב לשמור צריך לשבת **מחוץ** לקונטיינר, ב-volume. מיד נגיע לזה.
+</Callout>
+
+## Dockerfile: המתכון שלכם
+
+**Dockerfile** הוא קובץ טקסט שמתאר איך לבנות image, שורה אחרי שורה. נבנה אתר קטן. בתיקייה חדשה, `my-site`, צרו שני קבצים:
+
+```html title="my-site/index.html"
+<h1>Hello from my container!</h1>
+```
+
+```dockerfile title="my-site/Dockerfile"
+FROM nginx:alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+```
+
+- **`FROM`**: ה-image שמתחילים ממנו. `nginx:alpine` הוא nginx על **Alpine Linux**, הפצה זעירה (כמה מגה-בייטים). `:alpine` הוא ה-**tag**, כלומר הגרסה.
+- **`COPY`**: מעתיקה קובץ מהמחשב שלכם אל תוך ה-image. התיקייה `/usr/share/nginx/html` היא המקום שממנו nginx מגיש קבצים.
+- **`EXPOSE 80`**: תיעוד: הקונטיינר מאזין לפורט 80. (בשביל לפתוח אותו בפועל עדיין צריך `-p`.)
+
+בונים ומריצים:
+
+```bash
+cd my-site
+docker build -t my-site .
+docker run -d --name site -p 8081:80 my-site
+curl http://localhost:8081
+```
+
+- `build -t my-site .`: בנה image בשם (tag) `my-site`, מה-Dockerfile **בתיקייה הנוכחית** (`.`).
+- `curl` תחזיר את ה-HTML שכתבתם: `<h1>Hello from my container!</h1>`.
+
+עוד שתי הוראות שתפגשו הרבה:
+
+```dockerfile title="Dockerfile (אפליקציית Python)"
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "app.py"]
+```
+
+- **`WORKDIR`**: כמו `cd` בתוך ה-image.
+- **`RUN`**: מריצה פקודה **בזמן הבנייה** (למשל, התקנת ספריות).
+- **`CMD`**: הפקודה שתרוץ **כשהקונטיינר עולה**.
+
+## volumes: מידע ששורד
+
+כשמוחקים קונטיינר, כל מה שנכתב בתוכו **נמחק איתו**. זה בסדר לשרת אינטרנט, אבל אסון למסד נתונים. **volume** הוא תיקייה שיושבת **מחוץ** לקונטיינר ומעוגנת לתוכו, כמו `mount` מפרק 21.
+
+יש שני סוגים:
+
+```bash
+docker volume create pgdata
+docker run -d --name db -e POSTGRES_PASSWORD=change-me -v pgdata:/var/lib/postgresql/data postgres:16
+
+docker run -d --name site2 -p 8082:80 -v "$PWD":/usr/share/nginx/html:ro nginx:alpine
+```
+
+1. **named volume** (`pgdata:...`): Docker מנהלת את המקום. מתאים למסדי נתונים. גם אם תמחקו את הקונטיינר `db`, ה-volume והמידע נשארים, וקונטיינר חדש יכול להמשיך מאותה נקודה.
+2. **bind mount** (`"$PWD":...`): תיקייה מהמחשב שלכם, ישירות. מתאים לפיתוח: עורכים את `index.html` במחשב, והשינוי מופיע מיד באתר. `:ro` = קריאה בלבד (read-only) מתוך הקונטיינר.
+
+`-e` מעבירה **משתנה סביבה** לקונטיינר (פרק 15). כך מגדירים רוב ה-images, למשל את הסיסמה של מסד הנתונים.
+
+## ניקיון
+
+images וקונטיינרים ישנים מצטברים ותופסים הרבה מקום בדיסק:
+
+```bash
+docker system df
+docker container prune
+docker image prune
+```
+
+`system df` מראה כמה מקום Docker תופסת. `container prune` מוחקת את כל הקונטיינרים **העצורים**, ו-`image prune` מוחקת images ללא שם שאף קונטיינר לא משתמש בהם.
+
+<Callout type="danger" title="docker system prune -a --volumes">
+הפקודה הזו מוחקת **כל** image שלא בשימוש כרגע, כל קונטיינר עצור, ו**כל volume** שלא מחובר לקונטיינר רץ. אם מסד הנתונים שלכם עצור ברגע זה, המידע שלו נמחק לצמיתות. לפני כל `prune`, הריצו `docker ps -a` ו-`docker volume ls` וודאו שאין שם משהו שאתם צריכים. ואל תוסיפו `--volumes` אם אתם לא בטוחים ב-100%.
+</Callout>
+
+<Exercise title="אתר בקונטיינר">
+1. צרו תיקייה עם `index.html` משלכם.
+2. הריצו nginx כך שהאתר יוגש מהתיקייה שלכם (bind mount, קריאה בלבד) בפורט 8090.
+3. שנו את `index.html`, ורעננו את הדף. מה קרה?
+4. עצרו ומחקו את הקונטיינר. האם `index.html` נמחק?
+
+<Solution>
+
+```bash
+mkdir ~/mysite && cd ~/mysite
+echo "<h1>Version 1</h1>" > index.html
+docker run -d --name mysite -p 8090:80 -v "$PWD":/usr/share/nginx/html:ro nginx:alpine
+curl http://localhost:8090
+echo "<h1>Version 2</h1>" > index.html
+curl http://localhost:8090
+docker stop mysite
+docker rm mysite
+ls
+```
+
+3. השינוי מופיע מיד, בלי לבנות שום דבר מחדש. ה-bind mount מראה לקונטיינר את הקובץ **שלכם**, לא עותק שלו.
+4. `index.html` עדיין שם. נמחק רק הקונטיינר. הקובץ תמיד היה במחשב שלכם.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "קונטיינר", body: "תוכנה ארוזה עם כל התלויות שלה. חולקת את הליבה עם המחשב, ולכן קלה ומהירה." },
+    { title: "image ≠ container", body: "image הוא המתכון הקפוא, container הוא עותק רץ שלו." },
+    { title: "`run -d -p --name`", body: "ברקע, מיפוי פורטים (מחשב:קונטיינר), ושם. `ps`, `logs`, `exec`, `stop`, `rm`." },
+    { title: "Dockerfile + volumes", body: "`FROM`, `COPY`, `RUN`, `CMD` לבניית image. volumes למידע שצריך לשרוד." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "מה ההבדל העיקרי בין קונטיינר למכונה וירטואלית?",
+      options: [
+        { text: "קונטיינר משתמש בליבה של המחשב המארח, ומכונה וירטואלית מריצה ליבה משלה", why: "לכן קונטיינרים קלים ועולים תוך שניות." },
+        { text: "קונטיינר עובד רק בענן", why: "קונטיינרים רצים בכל מחשב לינוקס, כולל המחשב שלכם." },
+        { text: "אין הבדל, אלה שני שמות לאותו דבר", why: "VM מדמה מחשב שלם. קונטיינר מבודד רק תהליכים." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "הרצתם `docker run -d -p 3000:80 nginx`. באיזו כתובת תגיעו לאתר מהמחשב שלכם?",
+      options: [
+        { text: "`http://localhost:80`", why: "80 הוא הפורט **בתוך** הקונטיינר. במחשב שלכם הוא ממופה ל-3000." },
+        { text: "`http://localhost:3000`", why: "הסדר ב-`-p` הוא מחשב:קונטיינר." },
+        { text: "`http://nginx:3000`", why: "`nginx` הוא שם ה-image, לא כתובת." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "מחקתם קונטיינר של מסד נתונים, ונעלם כל המידע. מה היה מונע את זה?",
+      options: [
+        { text: "להריץ אותו עם `sudo`", why: "ההרשאות לא קשורות למקום שבו המידע נשמר." },
+        { text: "`docker stop` במקום `docker rm`", why: "זה דוחה את הבעיה. בסוף תצטרכו לעדכן ולמחוק את הקונטיינר." },
+        { text: "volume, שמחזיק את המידע מחוץ לקונטיינר", why: "volume שורד מחיקה של הקונטיינר." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

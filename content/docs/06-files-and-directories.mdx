@@ -1,0 +1,292 @@
+# עבודה עם קבצים ותיקיות
+
+<Callout type="info" title="מה נלמד בפרק">
+- ליצור תיקיות עם `mkdir` וקבצים ריקים עם `touch`.
+- להעתיק עם `cp`, להעביר ולשנות שם עם `mv`.
+- למחוק עם `rm` ו-`rmdir`, **ולא למחוק בטעות**.
+- לעבוד על הרבה קבצים בבת אחת עם **תווים כלליים** (`*` ו-`?`).
+- להתמודד עם שמות שיש בהם רווחים.
+</Callout>
+
+## שולחן עבודה עם מגירות
+
+בפרק הקודם למדנו **לטייל** בבניין. עכשיו נלמד **לסדר** אותו.
+
+תחשבו על שולחן עבודה עם מגירות: פותחים מגירה חדשה, מכניסים דף, מצלמים עותק, מעבירים מסמך ממגירה למגירה, וזורקים את מה שלא צריך. אלה בדיוק חמש הפקודות של הפרק.
+
+כדי לא לגעת בקבצים חשובים, נעבוד בתיקיית הבית ונבנה שם הכול מאפס.
+
+## יוצרים תיקייה: `mkdir`
+
+`mkdir` (make directory) יוצרת תיקייה חדשה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir projects
+  $ mkdir projects
+  mkdir: cannot create directory ‘projects’: File exists
+`}</TerminalWindow>
+
+בפעם הראשונה התיקייה נוצרה, בשקט. בפעם השנייה קיבלנו שגיאה, כי היא כבר קיימת (File exists).
+
+### כמה רמות בבת אחת: `-p`
+
+רוצים ליצור `projects/website/css`, אבל `website` עוד לא קיימת? האפשרות `-p` (parents) יוצרת את כל הדרך:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir -p projects/website/css
+  $ ls projects
+  website
+  $ ls projects/website
+  css
+`}</TerminalWindow>
+
+בונוס: עם `-p`, `mkdir` לא מתלוננת אם התיקייה כבר קיימת.
+
+## יוצרים קובץ ריק: `touch`
+
+`touch` יוצרת קובץ ריק. אפשר לתת לה כמה שמות בבת אחת:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ touch notes.txt ideas.txt
+  $ ls
+  ideas.txt  notes.txt  projects
+`}</TerminalWindow>
+
+אם הקובץ כבר קיים, `touch` לא מוחקת אותו. היא רק מעדכנת את זמן השינוי שלו ("נוגעת" בו, ומכאן השם).
+
+## מעתיקים: `cp`
+
+`cp` (copy) מעתיקה: **מקור** ראשון, **יעד** שני.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cp notes.txt notes-backup.txt
+  $ ls
+  ideas.txt  notes-backup.txt  notes.txt  projects
+`}</TerminalWindow>
+
+### מעתיקים תיקייה שלמה: `-r`
+
+תיקייה היא כמו מגירה עם הרבה דפים. כדי להעתיק אותה עם כל מה שבתוכה צריך `-r` (recursive, "כולל כל מה שבפנים"):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cp projects projects-backup
+  cp: -r not specified; omitting directory 'projects'
+  $ cp -r projects projects-backup
+  $ ls
+  ideas.txt  notes-backup.txt  notes.txt  projects  projects-backup
+`}</TerminalWindow>
+
+בלי `-r`, `cp` מסרבת ומסבירה למה: "לא ציינתם `-r`, אז דילגתי על התיקייה".
+
+<Callout type="warning" title="cp דורסת בשקט">
+אם היעד כבר קיים, `cp` **דורסת** אותו בלי לשאול. רוצים שהיא תשאל קודם? הוסיפו `-i` (interactive): `cp -i notes.txt notes-backup.txt`.
+</Callout>
+
+## מעבירים ומשנים שם: `mv`
+
+`mv` (move) עושה שני דברים, וזה אותו רעיון: **לשנות את המיקום של קובץ**.
+
+**העברה לתיקייה אחרת**: כשהיעד הוא תיקייה, הקובץ עובר לתוכה.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mv ideas.txt projects/
+  $ ls projects
+  ideas.txt  website
+`}</TerminalWindow>
+
+**שינוי שם**: כשהיעד הוא שם חדש באותה תיקייה, הקובץ פשוט מקבל שם חדש. בלינוקס אין פקודת `rename` נפרדת לזה.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mv notes-backup.txt old-notes.txt
+  $ ls
+  notes.txt  old-notes.txt  projects  projects-backup
+`}</TerminalWindow>
+
+גם `mv` דורסת קבצים קיימים בלי לשאול, וגם לה יש `-i`.
+
+## מוחקים: `rm` ו-`rmdir`
+
+`rm` (remove) מוחקת קבצים. לתיקיות צריך `-r`, בדיוק כמו ב-`cp`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ rm old-notes.txt
+  $ rm projects-backup
+  rm: cannot remove 'projects-backup': Is a directory
+  $ rm -r projects-backup
+  $ ls
+  notes.txt  projects
+`}</TerminalWindow>
+
+<Callout type="danger" title="אין סל מחזור בטרמינל">
+מה ש-`rm` מוחקת **נעלם לתמיד**. אין "סל מחזור" ואין "בטל". לפני כל `rm`, ובמיוחד `rm -r`, קראו את הפקודה שוב.
+
+לעולם אל תריצו `rm -rf` על משהו שאתם לא בטוחים בו. ה-`-f` (force) אומר "אל תשאל ואל תתלונן", וביחד עם `-r` זה כלי חזק מאוד ומסוכן מאוד.
+</Callout>
+
+### רשת ביטחון: `rm -i`
+
+`-i` גורמת ל-`rm` לשאול על כל קובץ. עונים `y` (כן) או `n` (לא):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ rm -i notes.txt
+  rm: remove regular empty file 'notes.txt'? n
+`}</TerminalWindow>
+
+ענינו `n`, אז הקובץ נשאר.
+
+### מוחקים תיקייה ריקה: `rmdir`
+
+`rmdir` מוחקת תיקייה **רק אם היא ריקה**. זו דרך בטוחה, כי היא לא תמחק תוכן בטעות:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir empty
+  $ rmdir empty
+  $ rmdir projects
+  rmdir: failed to remove 'projects': Directory not empty
+`}</TerminalWindow>
+
+## הרבה קבצים בבת אחת: תווים כלליים
+
+נניח שיש לכם עשרות תמונות ואתם רוצים להעביר את כולן לתיקייה. לא צריך להקליד כל שם. **תווים כלליים** (wildcards) הם כמו ג'וקר בקלפים: הם מתאימים לכל דבר.
+
+| תו | מתאים ל... | דוגמה | מה היא תתפוס |
+| --- | --- | --- | --- |
+| `*` | כל רצף של תווים, גם ריק | `*.jpg` | כל קובץ שנגמר ב-`.jpg` |
+| `?` | תו אחד בדיוק | `photo?.jpg` | `photo1.jpg`, אבל לא `photo10.jpg` |
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ touch photo1.jpg photo2.jpg photo10.jpg report.pdf
+  $ ls
+  notes.txt  photo1.jpg  photo10.jpg  photo2.jpg  projects  report.pdf
+  $ ls *.jpg
+  photo1.jpg  photo10.jpg  photo2.jpg
+  $ ls photo?.jpg
+  photo1.jpg  photo2.jpg
+`}</TerminalWindow>
+
+ועכשיו מסדרים את כל התמונות בפקודה אחת:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir photos
+  $ mv *.jpg photos/
+  $ ls
+  notes.txt  photos  projects  report.pdf
+  $ ls photos
+  photo1.jpg  photo10.jpg  photo2.jpg
+`}</TerminalWindow>
+
+<Callout type="tip" title="קודם ls, אחר כך rm">
+לפני שמוחקים עם תו כללי, הריצו את אותו דפוס עם `ls`. למשל `ls *.tmp`, ורק אחרי שבדקתם מה יימחק, `rm *.tmp`. ככה רואים בדיוק מה ייתפס.
+</Callout>
+
+## שמות עם רווחים
+
+המעטפת מחלקת מילים לפי רווחים, כך ש-`my files` נראה לה כמו **שני** שמות. הפתרון: מירכאות.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir "my files"
+  $ ls
+  'my files'  notes.txt  photos  projects  report.pdf
+  $ cd my files
+  bash: cd: too many arguments
+  $ cd "my files"
+`}</TerminalWindow>
+
+- `ls` מציגה את השם עם גרשיים, כדי שיהיה ברור שזה שם אחד.
+- `cd my files` נכשלה: המעטפת קיבלה שני ארגומנטים, `my` ו-`files`.
+- עם מירכאות זה עובד. גם <Kbd>Tab</Kbd> יודע להשלים שמות כאלה בצורה נכונה.
+
+הכי פשוט? לא להשתמש ברווחים בשמות. מקובל לכתוב `my-files` או `my_files`.
+
+## תרגול: מסדרים את השולחן
+
+בסימולטור מותר למחוק בלי חשש: הקבצים מדומים, וכפתור האיפוס מחזיר הכול. נסו גם `rm` על תיקייה בלי `-r`, ותראו מה קורה.
+
+<TerminalSimulator mission="files-dirs" />
+
+<Exercise title="בונים מבנה לפרויקט">
+צרו בתיקיית הבית את המבנה הבא, ואז בדקו אותו:
+
+- תיקייה `blog` ובתוכה שתי תיקיות: `posts` ו-`images`.
+- בתוך `posts`, שני קבצים ריקים: `hello.md` ו-`about.md`.
+
+אחר כך העתיקו את כל `blog` לגיבוי בשם `blog-backup`.
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir -p blog/posts blog/images
+  $ touch blog/posts/hello.md blog/posts/about.md
+  $ ls blog
+  images  posts
+  $ ls blog/posts
+  about.md  hello.md
+  $ cp -r blog blog-backup
+`}</TerminalWindow>
+
+- `mkdir -p` מקבלת כמה נתיבים בבת אחת, ויוצרת את `blog` בדרך.
+- `touch` מקבלת נתיבים, לא רק שמות, אז לא צריך להיכנס ל-`posts` קודם.
+- `cp -r` כי מעתיקים תיקייה.
+</Solution>
+</Exercise>
+
+<Exercise title="מסדרים תיקיית הורדות">
+בתיקייה יש את הקבצים `song1.mp3`, `song2.mp3`, `cv.pdf`, `invoice.pdf` ו-`notes.txt`. העבירו את כל השירים לתיקייה `music` ואת כל ה-PDF לתיקייה `documents`, בכמה שפחות פקודות.
+
+<Solution>
+<TerminalWindow title="~/downloads" user="dana@ubuntu">{`
+  $ mkdir music documents
+  $ mv *.mp3 music/
+  $ mv *.pdf documents/
+  $ ls
+  documents  music  notes.txt
+`}</TerminalWindow>
+
+`mkdir` יוצרת שתי תיקיות בפקודה אחת, ושני תווים כלליים מעבירים את כל הקבצים. לא משנה אם יש 2 שירים או 2,000.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`mkdir -p` ו-`touch`", body: "יוצרות תיקיות (גם כמה רמות) וקבצים ריקים." },
+    { title: "`cp -r` ו-`mv`", body: "`cp` מעתיקה (`-r` לתיקיות). `mv` מעבירה וגם משנה שם." },
+    { title: "`rm` בזהירות", body: "אין סל מחזור. `-i` שואלת לפני מחיקה, ו-`rmdir` מוחקת רק תיקייה ריקה." },
+    { title: "`*` ו-`?`", body: "`*` לכל רצף תווים, `?` לתו אחד. בודקים קודם עם `ls`." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "איך משנים את השם של `draft.txt` ל-`final.txt`?",
+      options: [
+        { text: "`cp draft.txt final.txt`", why: "זה יוצר עותק בשם החדש, אבל `draft.txt` נשאר." },
+        { text: "`mv draft.txt final.txt`", why: "ב-`mv`, יעד שהוא שם חדש פשוט משנה את השם." },
+        { text: "`rename draft.txt`", why: "אין צורך בפקודה נפרדת. בלינוקס משנים שם עם `mv`." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "איזו פקודה תמחק תיקייה רק אם היא ריקה?",
+      options: [
+        { text: "`rmdir`", why: "אם יש בתיקייה משהו, היא תסרב, וזה מה שהופך אותה לבטוחה." },
+        { text: "`rm -r`", why: "`rm -r` מוחקת תיקייה עם כל התוכן שלה, ריקה או לא." },
+        { text: "`rm -f`", why: "`-f` רק מבטלת שאלות ואזהרות. בלי `-r` היא לא מוחקת תיקיות בכלל." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "יש בתיקייה `a.txt`, `ab.txt` ו-`abc.txt`. מה יציג `ls a?.txt`?",
+      options: [
+        { text: "את שלושתם", why: "`?` מתאים לתו אחד **בדיוק**, ולא לכל אורך." },
+        { text: "רק את `a.txt`", why: "ב-`a.txt` אין תו בין ה-`a` לנקודה, ו-`?` דורש תו אחד בדיוק." },
+        { text: "רק את `ab.txt`", why: "רק ב-`ab.txt` יש תו אחד בדיוק (`b`) בין `a` ל-`.txt`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

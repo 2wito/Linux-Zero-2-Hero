@@ -1,0 +1,319 @@
+# חיפוש קבצים ופקודות
+
+<Callout type="info" title="מה נלמד בפרק">
+- לחפש קבצים עם `find`: לפי **שם**, **סוג**, **גודל** ו**זמן**.
+- לבצע פעולה על כל מה שנמצא, עם `-exec` ו-`-delete`.
+- חיפוש מהיר עם `locate`.
+- לגלות איפה פקודה נמצאת: `which`, `type` ו-`whereis`.
+- להעביר רשימה של קבצים לפקודה אחרת עם `xargs`.
+</Callout>
+
+## איפה שמתי את המפתחות?
+
+יש שתי דרכים לחפש משהו בבית. אפשר **לעבור חדר אחרי חדר** ולבדוק כל מגירה: איטי, אבל תמיד מעודכן. ואפשר **להסתכל ברשימת מלאי** שכתבתם פעם: מהיר מאוד, אבל רק אם הרשימה עדכנית.
+
+`find` היא הדרך הראשונה. `locate` היא השנייה. נתחיל מ-`find`, כי היא החזקה יותר.
+
+נתרגל על תיקיית פרויקט קטנה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project
+  project
+  project/docs
+  project/docs/README.md
+  project/docs/todo.txt
+  project/old
+  project/old/backup.tar
+  project/old/debug.log
+  project/old/app.log
+  project/old/notes.txt
+  project/src
+  project/src/utils.py
+  project/src/main.py
+`}</TerminalWindow>
+
+בלי תנאים, `find` פשוט מציגה את כל מה שבתוך התיקייה, לכל העומק. המבנה של כל פקודת `find` הוא: **איפה לחפש**, ואחריו **תנאים**.
+
+## לפי שם: `-name`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.py"
+  project/src/utils.py
+  project/src/main.py
+  $ find project -name "readme*"
+  $ find project -iname "readme*"
+  project/docs/README.md
+`}</TerminalWindow>
+
+- `-name "*.py"`: כל הקבצים שנגמרים ב-`.py`. אותו `*` שהכרנו בפרק 6.
+- `-name` מבחינה בין גדולות לקטנות, ולכן `readme*` לא מצאה את `README.md`.
+- `-iname` (insensitive) לא מבחינה.
+
+<Callout type="warning" title="מירכאות סביב התבנית">
+כתבו `-name "*.py"` עם מירכאות. בלעדיהן, אם יש `.py` בתיקייה הנוכחית, המעטפת תחליף את `*.py` בשמות שלהם עוד לפני ש-`find` רצה, והחיפוש יהיה שגוי.
+</Callout>
+
+## לפי סוג: `-type`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -type d
+  project
+  project/docs
+  project/old
+  project/src
+  $ find project -type f -name "*.txt"
+  project/docs/todo.txt
+  project/old/notes.txt
+`}</TerminalWindow>
+
+`-type d` = תיקיות (directory), `-type f` = קבצים רגילים (file). כשכותבים כמה תנאים ברצף, `find` מחפשת את מה שעונה על **כולם**.
+
+## לפי גודל: `-size`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -size +1M
+  project/old/backup.tar
+`}</TerminalWindow>
+
+`+1M` = יותר ממגה-בייט. `-1M` = פחות. יחידות: `k` (קילו), `M` (מגה) ו-`G` (ג'יגה). זה שימושי מאוד כשהדיסק מתמלא ורוצים לדעת מה תופס את המקום (נחזור לזה בפרק 21).
+
+## לפי זמן: `-mtime`
+
+`-mtime` בודקת מתי הקובץ שונה לאחרונה, ב**ימים**:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -mtime +30
+  project/old/backup.tar
+  project/old/debug.log
+  project/old/app.log
+  project/old/notes.txt
+  $ find project -mtime -7 -type f
+  project/docs/README.md
+  project/docs/todo.txt
+  project/src/utils.py
+  project/src/main.py
+`}</TerminalWindow>
+
+- `+30`: לפני **יותר** מ-30 יום. קבצים ישנים.
+- `-7`: ב-7 הימים **האחרונים**. "על מה עבדתי השבוע?"
+
+## חיפוש בכל המערכת
+
+אפשר לחפש מתחילת עץ התיקיות, או מכל תיקייה אחרת. אבל משתמש רגיל לא יכול להיכנס לכל תיקייה, והשגיאות מציפות את המסך:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ find /etc -name os-release
+  find: ‘/etc/polkit-1/rules.d’: Permission denied
+  /etc/os-release
+  find: ‘/etc/credstore.encrypted’: Permission denied
+  find: ‘/etc/credstore’: Permission denied
+  find: ‘/etc/ssl/private’: Permission denied
+  $ find /etc -name "os-release" 2>/dev/null
+  /etc/os-release
+`}</TerminalWindow>
+
+זוכרים את `2>/dev/null` מפרק 12? הוא בולע את השגיאות, ונשארת רק התשובה.
+
+<Callout type="tip" title="חיפוש ב-/ לוקח זמן">
+`find / -name ...` עוברת על **כל** הדיסק. זה יכול לקחת דקות, ובמיוחד ב-WSL, שם גם הכוננים של Windows (`/mnt/c`) הם חלק מהעץ. כדאי להתחיל מתיקייה מצומצמת יותר, כמו `/etc` או `~`.
+</Callout>
+
+## לעשות משהו עם מה שנמצא
+
+### `-exec`
+
+`-exec` מריצה פקודה על **כל** קובץ שנמצא. `{}` מסמן את המקום של שם הקובץ, ו-`\;` מסמן את סוף הפקודה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -size +1M -exec ls -lh {} \\;
+  -rw-r--r-- 1 dana dana 2.9M Oct  2 21:58 project/old/backup.tar
+`}</TerminalWindow>
+
+כאן הרצנו `ls -lh` (`-h` = גדלים קריאים, human) על כל קובץ גדול.
+
+### `-delete`
+
+<Callout type="warning" title="-delete מוחקת בלי לשאול">
+`find ... -delete` מוחקת כל מה שנמצא, לצמיתות. **תמיד** הריצו קודם את אותה פקודה **בלי** `-delete`, ובדקו שהרשימה היא בדיוק מה שאתם רוצים למחוק. ו-`-delete` חייבת להיות **בסוף**: אם תשימו אותה לפני התנאים, היא תמחק הכול.
+</Callout>
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.log"
+  project/old/debug.log
+  project/old/app.log
+  $ find project -name "*.log" -delete
+  $ find project -name "*.log"
+`}</TerminalWindow>
+
+קודם בדקנו את הרשימה, אחר כך מחקנו, ובסוף וידאנו שלא נשאר כלום.
+
+## `locate`: רשימת המלאי
+
+`locate` לא סורקת את הדיסק. היא מחפשת במסד נתונים של כל שמות הקבצים, שמתעדכן פעם ביום. לכן היא כמעט מיידית, אבל לא תמצא קובץ שנוצר לפני רגע. ב-Ubuntu היא לא מותקנת כברירת מחדל:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ locate os-release
+  Command 'locate' not found, but can be installed with:
+  sudo apt install plocate
+`}</TerminalWindow>
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S plocate
+sudo updatedb
+locate os-release
+```
+
+</Distro>
+</DistroTabs>
+
+`updatedb` מעדכנת את המסד ידנית. אחרי ההתקנה צריך להריץ אותה פעם אחת, וממנה והלאה זה קורה אוטומטית.
+
+## איפה הפקודה? `which`, `type` ו-`whereis`
+
+כל פקודה (חוץ מהמובנות) היא קובץ איפשהו בדיסק. כדי לגלות איפה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ which ls
+  /usr/bin/ls
+  $ which python3 nano
+  /usr/bin/python3
+  /usr/bin/nano
+  $ type cd ls
+  cd is a shell builtin
+  ls is /usr/bin/ls
+  $ whereis ls
+  ls: /usr/bin/ls /usr/share/man/man1/ls.1.gz
+  $ which nosuchcmd
+`}</TerminalWindow>
+
+- `which` מחזירה את הנתיב של הפקודה שתרוץ כשתקלידו את השם שלה. כשאין כזו, היא לא מחזירה כלום.
+- `type` (מפרק 8) יודעת גם על פקודות מובנות, כמו `cd`, שאין להן קובץ.
+- `whereis` מוצאת גם את דף ה-man.
+
+איך `which` יודעת איפה לחפש? היא בודקת את התיקיות שב-`PATH`, ועל זה נדבר בפרק הבא.
+
+## `xargs`: מרשימה לפקודה
+
+הרבה פקודות לא קוראות שמות קבצים מ-stdin. הן רוצות אותם כ**ארגומנטים**. `xargs` היא המתרגמת: היא לוקחת שורות מ-stdin והופכת אותן לארגומנטים של פקודה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ find project -name "*.py" | xargs wc -l
+   1 project/src/utils.py
+   1 project/src/main.py
+   2 total
+  $ find project -name "*.txt" | xargs grep -l todo
+  project/docs/todo.txt
+  $ echo "one two three" | xargs -n 1
+  one
+  two
+  three
+`}</TerminalWindow>
+
+- בדוגמה הראשונה, `xargs` הריצה `wc -l project/src/utils.py project/src/main.py`.
+- בשנייה, `grep -l` (list) מחזירה רק את **שמות** הקבצים שמכילים את המילה.
+- `-n 1` מעבירה ארגומנט אחד בכל פעם.
+
+### המלכודת: רווחים בשמות
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ touch "my notes.txt"
+  $ find . -maxdepth 1 -name "*.txt" | xargs ls -l
+  ls: cannot access './my': No such file or directory
+  ls: cannot access 'notes.txt': No such file or directory
+  $ find . -maxdepth 1 -name "*.txt" -print0 | xargs -0 ls -l
+  -rw-r--r-- 1 dana dana 0 Nov 11 20:58 './my notes.txt'
+`}</TerminalWindow>
+
+`xargs` מפרקת לפי רווחים, ולכן `my notes.txt` הפך לשני "קבצים". הפתרון: `-print0` ב-`find` ו-`-0` ב-`xargs` מפרידים לפי תו מיוחד שלא יכול להופיע בשם קובץ. (`-maxdepth 1` מגבילה את החיפוש לתיקייה הנוכחית בלבד.)
+
+<Callout type="warning" title="find | xargs rm">
+`find ... | xargs rm` היא צירוף נפוץ, ומסוכן כשיש רווחים בשמות: `rm` עלולה למחוק קובץ אחר, שבמקרה נקרא כמו חצי מהשם. אם כבר מוחקים, עדיף `find ... -delete`, או לפחות `-print0 | xargs -0 rm`, ותמיד אחרי בדיקה בלי `rm`.
+</Callout>
+
+<Exercise title="בלש קבצים">
+בתיקיית הבית שלכם:
+
+1. מצאו את כל קבצי ה-`.txt` (בלי הבדל בין גדולות לקטנות).
+2. מצאו את כל התיקיות בשם `projects`.
+3. מצאו קבצים ששונו ביום האחרון.
+4. ב-`/usr/share`, מצאו קבצים גדולים מ-10M, בלי הודעות שגיאה.
+
+<Solution>
+
+```bash
+find ~ -iname "*.txt"
+find ~ -type d -name projects
+find ~ -mtime -1 -type f
+find /usr/share -size +10M 2>/dev/null
+```
+
+בסעיף 3, `-1` אומר "בפחות מיום". ייתכן שתראו שם גם קבצים מוסתרים שתוכנות שינו, כמו `.bash_history`.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`find`", body: "איפה + תנאים: `-name`, `-iname`, `-type`, `-size`, `-mtime`." },
+    { title: "`-exec` / `-delete`", body: "פעולה על כל מה שנמצא. תמיד לבדוק את הרשימה לפני מחיקה." },
+    { title: "`locate`", body: "חיפוש מהיר במסד נתונים, שמתעדכן עם `updatedb`." },
+    { title: "`which` / `xargs`", body: "איפה הפקודה נמצאת. ואיך הופכים רשימה לארגומנטים." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "איך מוצאים את כל **התיקיות** בשם `logs` תחת `/var`?",
+      options: [
+        { text: "`find /var -type f -name logs`", why: "`-type f` מחפשת קבצים רגילים, לא תיקיות." },
+        { text: "`find /var -type d -name logs`", why: "`d` = directory." },
+        { text: "`locate -type d logs`", why: "ל-`locate` אין `-type`. היא מחפשת רק לפי שם." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "יצרתם קובץ לפני דקה, ו-`locate` לא מוצאת אותו. למה?",
+      options: [
+        { text: "המסד של `locate` מתעדכן פעם ביום. `sudo updatedb` או `find` יפתרו", why: "`locate` מחפשת ברשימת מלאי, לא בדיסק עצמו." },
+        { text: "`locate` מוצאת רק קבצי מערכת", why: "היא מוצאת כל קובץ שנמצא במסד." },
+        { text: "הקובץ נמחק", why: "לא בהכרח. פשוט המסד עוד לא יודע עליו." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "מה הדרך הבטוחה למחוק קבצים עם `find`?",
+      options: [
+        { text: "להריץ `-delete` ישר, כי זה מהיר", why: "בלי בדיקה מוקדמת, תנאי שגוי אחד מוחק קבצים שלא התכוונתם." },
+        { text: "`sudo find / -delete`", why: "זו אחת הפקודות ההרסניות ביותר שאפשר להריץ." },
+        { text: "להריץ קודם בלי `-delete`, לבדוק את הרשימה, ואז להוסיף `-delete` בסוף", why: "כך יודעים בדיוק מה עומד להימחק." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

@@ -1,0 +1,530 @@
+# כתיבת סקריפטים ב-Bash
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **סקריפט**, ומה זו שורת ה-**shebang**.
+- **משתנים**, **קלט** מהמשתמש ו**ארגומנטים**.
+- תנאים עם `if`, ולולאות עם `for` ו-`while`.
+- **פונקציות**.
+- **קודי יציאה**, `&&` ו-`||`.
+- `set -euo pipefail`, ואיך זה מציל מטעויות.
+- לבנות **סקריפט גיבוי אמיתי**, עם תאריך ומחיקה של גיבויים ישנים.
+</Callout>
+
+## מתכון שהמחשב מבשל לבד
+
+עד עכשיו הקלדנו פקודות אחת אחת, כמו טבח שמבשל בעצמו. **סקריפט** הוא **מתכון כתוב**: קובץ עם רשימת פקודות, שהמחשב מבצע לפי הסדר. כותבים פעם אחת, ומריצים כמה פעמים שרוצים, בלי טעויות הקלדה ובלי לשכוח שלב.
+
+כל מה שלמדנו עד עכשיו עובד גם בסקריפט: צינורות, הפניות, `grep`, `tar`. סקריפט הוא פשוט פקודות בקובץ, ועוד כמה כלים של שפת תכנות.
+
+## הסקריפט הראשון
+
+צרו קובץ (למשל עם `nano hello.sh`):
+
+```bash title="hello.sh"
+#!/bin/bash
+# My first script
+echo "Hello from a script!"
+echo "Today is $(date +%A)"
+```
+
+- **שורה 1, ה-shebang** (`#!` ואחריו נתיב): אומרת למערכת **איזו תוכנה** תריץ את הקובץ. כאן, `/bin/bash`. היא חייבת להיות השורה הראשונה.
+- **שורה 2**: הערה. כל מה שאחרי `#` נשמר בשבילכם, והמעטפת מתעלמת ממנו.
+- **`$(...)`**: מריצה פקודה ומכניסה את הפלט שלה למקום. `date +%A` מחזירה את שם היום.
+
+נותנים הרשאת הרצה (פרק 9) ומריצים (`./` מפרק 15):
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ chmod +x hello.sh
+  $ ./hello.sh
+  Hello from a script!
+  Today is Wednesday
+  $ bash hello.sh
+  Hello from a script!
+  Today is Wednesday
+`}</TerminalWindow>
+
+`bash hello.sh` מריצה את הקובץ גם בלי הרשאת הרצה, כי כאן אתם מריצים את `bash` והקובץ הוא רק הקלט שלה.
+
+## משתנים
+
+כמו בפרק 15: בלי רווחים סביב `=`, ו-`$` כדי לקרוא:
+
+```bash title="vars.sh"
+#!/bin/bash
+name="Dana"
+count=3
+echo "Hi $name, you have $count new messages"
+files=$(ls | wc -l)
+echo "There are $files files here"
+echo "Next year you'll have $((count * 2)) messages"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./vars.sh
+  Hi Dana, you have 3 new messages
+  There are 14 files here
+  Next year you'll have 6 messages
+`}</TerminalWindow>
+
+- `files=$(ls | wc -l)`: שומרים במשתנה את **הפלט** של פקודה.
+- `$((...))`: חשבון. עובד רק עם מספרים שלמים.
+
+<Callout type="tip" title="תמיד מירכאות סביב משתנים">
+כתבו `"$name"` ולא `$name`. בלי מירכאות, ערך עם רווח (כמו `my notes.txt`) מתפרק לשתי מילים, בדיוק כמו בפרק 6. זה מקור מספר אחת לבאגים בסקריפטים.
+</Callout>
+
+## קלט מהמשתמש: `read`
+
+```bash title="greet.sh"
+#!/bin/bash
+read -p "What's your name? " name
+echo "Nice to meet you, $name!"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./greet.sh
+  What's your name? Dana
+  Nice to meet you, Dana!
+`}</TerminalWindow>
+
+`read` מחכה שתקלידו שורה, ושומרת אותה במשתנה `name`. `-p` (prompt) מציגה שאלה לפני.
+
+## ארגומנטים: `$1`, `$2`...
+
+הדרך הנפוצה יותר לתת לסקריפט מידע היא **ארגומנטים**, בדיוק כמו בכל פקודה:
+
+```bash title="args.sh"
+#!/bin/bash
+echo "Script name: $0"
+echo "First argument: $1"
+echo "Second argument: $2"
+echo "Number of arguments: $#"
+echo "All arguments: $@"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./args.sh hello world 42
+  Script name: ./args.sh
+  First argument: hello
+  Second argument: world
+  Number of arguments: 3
+  All arguments: hello world 42
+`}</TerminalWindow>
+
+| משתנה | מה יש בו |
+| --- | --- |
+| `$0` | שם הסקריפט |
+| `$1`, `$2`, ... | הארגומנט הראשון, השני... |
+| `$#` | כמה ארגומנטים קיבלנו |
+| `$@` | כל הארגומנטים |
+
+## תנאים: `if`
+
+`if` בודקת תנאי, ומריצה קוד רק אם הוא נכון. הנה סקריפט שבודק מה זה הנתיב שקיבל:
+
+```bash title="check.sh"
+#!/bin/bash
+file="$1"
+
+if [ -z "$file" ]; then
+    echo "Usage: $0 <file>"
+    exit 1
+fi
+
+if [ -f "$file" ]; then
+    echo "$file is a file"
+elif [ -d "$file" ]; then
+    echo "$file is a directory"
+else
+    echo "$file does not exist"
+    exit 2
+fi
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./check.sh
+  Usage: ./check.sh <file>
+  $ ./check.sh shopping.txt
+  shopping.txt is a file
+  $ ./check.sh projects
+  projects is a directory
+  $ ./check.sh nosuch
+  nosuch does not exist
+`}</TerminalWindow>
+
+המבנה: `if [ תנאי ]; then ... elif ...; else ... fi` (`fi` הוא `if` הפוך, וסוגר את התנאי). הרווחים בתוך `[ ]` **חובה**: `[ -f "$file" ]` ולא `[-f "$file"]`.
+
+הבדיקות הנפוצות:
+
+| בדיקה | נכונה כאשר |
+| --- | --- |
+| `-f path` | קיים קובץ רגיל |
+| `-d path` | קיימת תיקייה |
+| `-e path` | קיים משהו (קובץ או תיקייה) |
+| `-z "$s"` | המחרוזת ריקה |
+| `"$a" = "$b"` | שתי מחרוזות זהות |
+| `$a -eq $b` | מספרים שווים (`-ne` שונים) |
+| `$a -gt $b` / `-lt` | גדול מ / קטן מ |
+| `$a -ge $b` / `-le` | גדול או שווה / קטן או שווה |
+| `! ...` | הפוך את התנאי |
+
+```bash title="age.sh"
+#!/bin/bash
+age=$1
+if [ "$age" -ge 18 ]; then
+    echo "Adult"
+else
+    echo "Minor"
+fi
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./age.sh 21
+  Adult
+  $ ./age.sh 12
+  Minor
+`}</TerminalWindow>
+
+<Callout type="tip" title="למה -ge ולא >=?">
+בתוך `[ ]`, הסימן `>` הוא **הפניה** (פרק 12)! `[ $a > 5 ]` יוצרת קובץ בשם `5`. למספרים משתמשים ב-`-gt`, `-lt` וחבריהם.
+</Callout>
+
+## לולאות: `for` ו-`while`
+
+`for` עוברת על רשימה, ומריצה את הקוד פעם אחת לכל פריט. `while` חוזרת כל עוד תנאי נכון:
+
+```bash title="loops.sh"
+#!/bin/bash
+for fruit in apple banana cherry; do
+    echo "I like $fruit"
+done
+
+for file in *.txt; do
+    echo "Found: $file ($(wc -l < "$file") lines)"
+done
+
+for i in {1..3}; do
+    echo "Round $i"
+done
+
+count=3
+while [ $count -gt 0 ]; do
+    echo "$count..."
+    count=$((count - 1))
+done
+echo "Liftoff!"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./loops.sh
+  I like apple
+  I like banana
+  I like cherry
+  Found: numbers.txt (5 lines)
+  Found: shopping.txt (2 lines)
+  Round 1
+  Round 2
+  Round 3
+  3...
+  2...
+  1...
+  Liftoff!
+`}</TerminalWindow>
+
+- `for file in *.txt`: הכוכבית מפרק 6 הופכת לרשימת כל קבצי ה-`.txt`. זו הדרך הכי נפוצה לעבוד על הרבה קבצים.
+- `{1..3}`: רצף מספרים, 1 עד 3.
+- ב-`while`, חשוב לשנות משהו בכל סיבוב (כאן `count`). אחרת הלולאה לא תיגמר לעולם, ו-<Kbd keys="Ctrl+C" /> יעצור אותה.
+
+## פונקציות
+
+**פונקציה** היא "מתכון בתוך מתכון": קטע קוד עם שם, שאפשר לקרוא לו כמה פעמים. בתוך פונקציה, `$1` הוא הארגומנט **של הפונקציה**:
+
+```bash title="func.sh"
+#!/bin/bash
+greet() {
+    local who="$1"
+    echo "Hello, $who!"
+}
+
+is_even() {
+    [ $(( $1 % 2 )) -eq 0 ]
+}
+
+greet "Dana"
+greet "Yossi"
+
+for n in 3 4; do
+    if is_even "$n"; then
+        echo "$n is even"
+    else
+        echo "$n is odd"
+    fi
+done
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./func.sh
+  Hello, Dana!
+  Hello, Yossi!
+  3 is odd
+  4 is even
+`}</TerminalWindow>
+
+- `local` אומרת שהמשתנה קיים רק בתוך הפונקציה, ולא "דולף" החוצה.
+- `is_even` לא מדפיסה כלום. היא מחזירה **הצלחה או כישלון**, ולכן אפשר לשים אותה ישר ב-`if`. זה מוביל אותנו לנושא הבא.
+
+## קודי יציאה
+
+כל פקודה, כשהיא מסתיימת, מחזירה **מספר**: `0` אומר הצלחה, וכל מספר אחר אומר שמשהו נכשל. המשתנה `$?` מכיל את הקוד של הפקודה האחרונה:
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ls /etc > /dev/null
+  $ echo $?
+  0
+  $ ls /nosuch
+  ls: cannot access '/nosuch': No such file or directory
+  $ echo $?
+  2
+`}</TerminalWindow>
+
+גם הסקריפטים שלנו מחזירים קוד, עם `exit`. ב-`check.sh` כתבנו `exit 1` כשחסר ארגומנט ו-`exit 2` כשהקובץ לא קיים. כך מי שמריץ את הסקריפט (אדם או סקריפט אחר) יודע אם הוא הצליח.
+
+### `&&` ו-`||`
+
+| צירוף | משמעות |
+| --- | --- |
+| `a && b` | הרץ את `b` **רק אם** `a` הצליחה |
+| `a \|\| b` | הרץ את `b` **רק אם** `a` נכשלה |
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ grep -q root /etc/passwd && echo "found"
+  found
+  $ mkdir projects || echo "could not create"
+  mkdir: cannot create directory ‘projects’: File exists
+  could not create
+`}</TerminalWindow>
+
+(`grep -q`, quiet, לא מדפיסה כלום. היא רק מחזירה הצלחה או כישלון.) את `&&` כבר ראינו: `sudo apt update && sudo apt upgrade` מריצה את העדכון רק אם רענון הרשימה הצליח.
+
+## `set -euo pipefail`: חגורת בטיחות
+
+הנה בעיה אמיתית. ברירת המחדל של Bash היא **להמשיך** אחרי שגיאה:
+
+```bash title="loose.sh"
+#!/bin/bash
+cd /nosuch/folder
+echo "Still running in: $(pwd)"
+```
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ./loose.sh
+  ./loose.sh: line 2: cd: /nosuch/folder: No such file or directory
+  Still running in: /home/dana
+`}</TerminalWindow>
+
+ה-`cd` נכשל, והסקריפט המשיך לרוץ **בתיקייה הלא נכונה**. עכשיו דמיינו שהשורה הבאה הייתה `rm -rf *`.
+
+<Callout type="danger" title="cd שנכשל + rm = אסון">
+`cd /some/folder` ואחריו `rm -rf *` הוא הצירוף ההרסני ביותר בסקריפטים. אם `cd` נכשל, `rm` מוחקת את כל מה שבתיקייה **הנוכחית**, אולי תיקיית הבית שלכם. לעולם אל תכתבו את זה בלי `set -e`, או לפחות `cd /some/folder || exit 1`.
+</Callout>
+
+הפתרון: שורה אחת בתחילת **כל** סקריפט:
+
+```bash
+set -euo pipefail
+```
+
+| חלק | מה הוא עושה |
+| --- | --- |
+| `-e` | עוצר את הסקריפט בשגיאה הראשונה |
+| `-u` | משתנה שלא הוגדר הוא שגיאה (ולא ערך ריק בשקט) |
+| `-o pipefail` | צינור נכשל אם **אחת** הפקודות בו נכשלה, לא רק האחרונה |
+
+`-u` תופסת שגיאות כתיב בשמות משתנים:
+
+```bash title="strict.sh"
+#!/bin/bash
+set -euo pipefail
+
+backup_dir="/tmp/backups"
+echo "Backing up to $backup_dri"
+echo "This line never runs"
+```
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./strict.sh
+  ./strict.sh: line 5: backup_dri: unbound variable
+  $ echo $?
+  1
+`}</TerminalWindow>
+
+בלי `-u`, `$backup_dri` (עם שגיאת כתיב) הייתה פשוט ריקה, והסקריפט היה ממשיך עם נתיב שגוי.
+
+## פרויקט: סקריפט גיבוי אמיתי
+
+נחבר הכול. הסקריפט מקבל תיקייה, יוצר ממנה ארכיון `.tar.gz` (פרק 17) עם תאריך ושעה בשם, ושומר רק את 5 הגיבויים האחרונים:
+
+```bash title="backup.sh"
+#!/bin/bash
+# backup.sh: creates a dated, compressed backup of a folder
+# Usage: ./backup.sh <folder> [destination]
+set -euo pipefail
+
+source_dir="${1:-}"
+dest_dir="${2:-$HOME/backups}"
+keep=5
+
+if [ -z "$source_dir" ]; then
+    echo "Usage: $0 <folder> [destination]" >&2
+    exit 1
+fi
+
+if [ ! -d "$source_dir" ]; then
+    echo "Error: '$source_dir' is not a directory" >&2
+    exit 1
+fi
+
+mkdir -p "$dest_dir"
+
+name=$(basename "$source_dir")
+stamp=$(date +%Y-%m-%d_%H-%M-%S)
+archive="$dest_dir/${name}_${stamp}.tar.gz"
+
+tar -czf "$archive" -C "$(dirname "$source_dir")" "$name"
+echo "Created $archive ($(du -h "$archive" | cut -f1))"
+
+# Keep only the newest $keep backups of this folder
+ls -1t "$dest_dir/${name}"_*.tar.gz | tail -n +$((keep + 1)) | while read -r old; do
+    rm -- "$old"
+    echo "Removed old backup: $old"
+done
+```
+
+מה חדש כאן:
+
+- **`${1:-}`**: הארגומנט הראשון, או ריק אם לא קיבלנו. בלי זה, `set -u` הייתה עוצרת את הסקריפט עוד לפני שהספקנו להדפיס הסבר.
+- **`${2:-$HOME/backups}`**: ערך ברירת מחדל. אם לא נתנו יעד, הגיבוי ילך ל-`~/backups`.
+- **`>&2`**: הודעות שגיאה הולכות ל-stderr (פרק 12), כמו שעושות פקודות אמיתיות.
+- **`basename` / `dirname`**: מפרקות נתיב. מ-`projects/site` הן מחזירות `site` ו-`projects`.
+- **`${name}_${stamp}`**: הסוגריים המסולסלים מסמנים איפה שם המשתנה נגמר. בלעדיהם, Bash הייתה מחפשת משתנה בשם `name_`.
+- **השורה האחרונה**: `ls -1t` ממיינת מהחדש לישן, `tail -n +6` משאירה רק את מה שאחרי החמישה הראשונים, והלולאה מוחקת אותם. `--` אומר ל-`rm` שמה שבא אחריו הוא שם קובץ, גם אם הוא מתחיל במקף.
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ./backup.sh
+  Usage: ./backup.sh <folder> [destination]
+  $ ./backup.sh nosuch
+  Error: 'nosuch' is not a directory
+  $ ./backup.sh projects/site /tmp/bk-demo
+  Created /tmp/bk-demo/site_2026-11-11_21-08-40.tar.gz (8.0K)
+  $ tar -tzf /tmp/bk-demo/site_*.tar.gz
+  site/
+  site/index.html
+  site/data.txt
+`}</TerminalWindow>
+
+ואחרי כמה הרצות, כשכבר יש 5 גיבויים, הסקריפט מנקה את הישן ביותר:
+
+<TerminalWindow title="~/scripts" user="dana@ubuntu">{`
+  $ ls /tmp/bk
+  site_2026-11-11_21-08-53.tar.gz  site_2026-11-11_21-08-56.tar.gz
+  site_2026-11-11_21-08-54.tar.gz  site_2026-11-11_21-08-57.tar.gz
+  site_2026-11-11_21-08-55.tar.gz
+  $ ./backup.sh projects/site /tmp/bk
+  Created /tmp/bk/site_2026-11-11_21-09-00.tar.gz (4.0K)
+  Removed old backup: /tmp/bk/site_2026-11-11_21-08-53.tar.gz
+  $ ls /tmp/bk
+  site_2026-11-11_21-08-54.tar.gz  site_2026-11-11_21-08-57.tar.gz
+  site_2026-11-11_21-08-55.tar.gz  site_2026-11-11_21-09-00.tar.gz
+  site_2026-11-11_21-08-56.tar.gz
+`}</TerminalWindow>
+
+<Callout type="warning" title="סקריפט שמוחק: בדקו על תיקיית ניסוי">
+הסקריפט הזה מריץ `rm`. לפני שמריצים סקריפט שמוחק קבצים על מידע אמיתי, הריצו אותו על תיקיית ניסוי (כמו `/tmp/bk` כאן). טריק שימושי: החליפו זמנית את `rm` ב-`echo rm`, וכך תראו מה **היה** נמחק בלי למחוק באמת.
+</Callout>
+
+בפרק הבא נגרום לו לרוץ לבד, כל לילה.
+
+<Exercise title="סופר קבצים">
+כתבו סקריפט `count.sh` שמקבל תיקייה כארגומנט, ומדפיס כמה קבצים (לא תיקיות) יש בה. אם לא קיבל ארגומנט, או שהתיקייה לא קיימת, הוא מדפיס הודעה ויוצא עם קוד `1`.
+
+<Solution>
+
+```bash title="count.sh"
+#!/bin/bash
+set -euo pipefail
+
+dir="${1:-}"
+
+if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+    echo "Usage: $0 <directory>" >&2
+    exit 1
+fi
+
+count=$(find "$dir" -maxdepth 1 -type f | wc -l)
+echo "$dir has $count files"
+```
+
+`find -maxdepth 1 -type f` (פרק 14) מוצאת רק קבצים, ורק בתיקייה עצמה. אל תשכחו `chmod +x count.sh`.
+</Solution>
+</Exercise>
+
+<Exercise title="שינוי שמות בכמות">
+בתיקייה יש קבצים `photo1.JPG`, `photo2.JPG` ו-`photo3.JPG`. כתבו לולאה שמשנה לכולם את הסיומת ל-`.jpg` (אותיות קטנות).
+
+<Solution>
+
+```bash
+for f in *.JPG; do
+    mv -- "$f" "${f%.JPG}.jpg"
+done
+```
+
+`${f%.JPG}` היא שם הקובץ **בלי** הסיומת `.JPG` בסוף. מוסיפים לה `.jpg`, ו-`mv` משנה את השם. לפני שמריצים על קבצים אמיתיים, כדאי לנסות קודם עם `echo mv` במקום `mv`.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`#!/bin/bash`", body: "ה-shebang בשורה הראשונה, `chmod +x`, ומריצים עם `./`." },
+    { title: "משתנים וארגומנטים", body: "`name=x`, `\"$name\"`, `$1`, `$#`, `$(פקודה)` ו-`$((חשבון))`." },
+    { title: "`if` / `for` / `while`", body: "תנאים עם `[ ]` (רווחים חובה!), ולולאות על רשימות או כל עוד תנאי נכון." },
+    { title: "`set -euo pipefail`", body: "עוצר בשגיאה, במשתנה לא מוגדר ובצינור שנכשל. בתחילת כל סקריפט." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "מה תפקיד השורה `#!/bin/bash` בתחילת סקריפט?",
+      options: [
+        { text: "זו הערה, והמחשב מתעלם ממנה", why: "היא מתחילה ב-`#`, אבל בשורה הראשונה `#!` מקבלת משמעות מיוחדת." },
+        { text: "היא נותנת הרשאת הרצה", why: "הרשאה נותנים עם `chmod +x`." },
+        { text: "היא אומרת למערכת איזו תוכנה תריץ את הקובץ", why: "זה ה-shebang." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "בסקריפט כתוב `cd /data` ואחריו `rm -rf *`, ו-`/data` לא קיימת. מה יקרה בלי `set -e`?",
+      options: [
+        { text: "`rm` תמחק את כל מה שבתיקייה הנוכחית", why: "ה-`cd` נכשל, והסקריפט המשיך באותה תיקייה." },
+        { text: "הסקריפט יעצור אחרי ה-`cd`", why: "רק עם `set -e`. ברירת המחדל היא להמשיך." },
+        { text: "`rm` תיכשל גם היא", why: "היא תצליח, ובתיקייה הלא נכונה." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "מה הערך של `$?` אחרי פקודה שהצליחה?",
+      options: [
+        { text: "`1`", why: "בלינוקס, `1` (וכל מספר שאינו 0) אומר כישלון." },
+        { text: "`0`", why: "אפס = הצלחה. כל דבר אחר = סוג של כישלון." },
+        { text: "`true`", why: "`$?` הוא תמיד מספר." },
+      ],
+      answer: 1,
+    },
+  ]}
+/>

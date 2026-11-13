@@ -1,0 +1,327 @@
+# אבטחה בסיסית
+
+<Callout type="info" title="מה נלמד בפרק">
+- **עקרון ההרשאה המינימלית**, ואיך משתמשים ב-`sudo` נכון.
+- **עדכונים**: הצעד הכי חשוב, ואיך להפוך אותו לאוטומטי.
+- **חומת אש** עם `ufw`.
+- **מפתחות SSH**: `ssh-keygen` ו-`ssh-copy-id`.
+- **הקשחת SSH**: לכבות סיסמאות ו-root.
+</Callout>
+
+## מנעול, אזעקה ומפתחות
+
+אבטחה של מחשב דומה מאוד לאבטחה של בית. אין צעד אחד שהופך בית לבלתי חדיר, אבל כמה הרגלים פשוטים עוצרים כמעט את כל הפורצים:
+
+- **לנעול את הדלת** (עדכונים: לסגור פרצות ידועות).
+- **לא להשאיר חלונות פתוחים** (חומת אש: לסגור פורטים שלא צריך).
+- **לא לתת מפתח לכל אחד** (הרשאה מינימלית).
+- **מנעול טוב במקום מנעול חלש** (מפתחות SSH במקום סיסמאות).
+
+רוב הפריצות לשרתי לינוקס לא נעשות על ידי האקרים גאונים, אלא על ידי בוטים אוטומטיים שסורקים את כל האינטרנט ומחפשים את הטעויות הנפוצות: תוכנה לא מעודכנת, סיסמה חלשה ופורט פתוח.
+
+## הרשאה מינימלית ו-`sudo` נכון
+
+את העיקרון הכרנו בפרק 9: **לתת לכל משתמש ולכל תוכנה רק את מה שהם צריכים, ולא יותר**. בפועל:
+
+1. **עובדים כמשתמש רגיל**, ומשתמשים ב-`sudo` רק לפקודה הספציפית שצריכה אותה. לא `sudo -i` ועבודה כ-root "כי זה נוח".
+2. **שירותים רצים כמשתמש משלהם**, לא כ-root. (זוכרים את `User=` בקובץ ה-service בפרק 19?)
+3. **קבצים פרטיים מקבלים `600`**, ותיקיות פרטיות `700`.
+4. **`sudo` רק למי שצריך**. משתמש מקבל `sudo` כשמוסיפים אותו לקבוצה `sudo` (ב-Ubuntu) או `wheel` (ב-Fedora/Arch).
+
+`sudo` גם **רושמת כל שימוש** ב-`/var/log/auth.log`, כולל ניסיונות כושלים. כך נראה ניסיון להריץ `sudo` בלי סיסמה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ sudo -n true
+  sudo: a password is required
+  $ grep 'sudo:' /var/log/auth.log | tail -1
+  2026-11-11T21:17:34.717117+02:00 ubuntu sudo:     dana : a password is required ; TTY=pts/0 ; PWD=/tmp/tmp.XS9aFDdccN ; USER=root ; COMMAND=/usr/bin/true
+`}</TerminalWindow>
+
+**מי**, **מאיפה**, **בתור מי** ו**איזו פקודה**. (`-n`, non-interactive, אומרת ל-`sudo` לא לשאול סיסמה, אלא פשוט להיכשל.)
+
+<Callout type="warning" title="לא לערוך את /etc/sudoers ישירות">
+את ההגדרות של `sudo` עורכים **רק** עם `sudo visudo`. היא בודקת את התחביר לפני שמירה. טעות בקובץ שנערך ישירות עלולה לחסום את `sudo` לגמרי, ואז אי אפשר גם לתקן את הקובץ.
+</Callout>
+
+## עדכונים: נועלים את הדלת
+
+כל יום מתגלות פרצות אבטחה בתוכנות, והן מתוקנות בעדכונים. מערכת שלא מעדכנים היא דלת עם מנעול שכל פורץ יודע לפתוח. זה הצעד **הכי חשוב** בפרק הזה.
+
+את הפקודות הכרנו בפרק 10:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update && sudo apt upgrade
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf upgrade
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -Syu
+```
+
+</Distro>
+</DistroTabs>
+
+### עדכוני אבטחה אוטומטיים
+
+ב-Ubuntu, השירות **unattended-upgrades** מתקין עדכוני אבטחה לבד, פעם ביום. הוא מופעל כברירת מחדל:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl is-enabled unattended-upgrades
+  enabled
+  $ cat /etc/apt/apt.conf.d/20auto-upgrades
+  APT::Periodic::Update-Package-Lists "1";
+  APT::Periodic::Unattended-Upgrade "1";
+`}</TerminalWindow>
+
+`"1"` = כל יום. אם הקובץ לא קיים אצלכם, `sudo dpkg-reconfigure unattended-upgrades` מפעילה את השירות. ב-Fedora המקבילה היא `dnf-automatic`.
+
+<Callout type="tip" title="עדכונים שצריכים הפעלה מחדש">
+עדכון של הליבה נכנס לתוקף רק אחרי הפעלה מחדש. ב-Ubuntu, אם הקובץ `/var/run/reboot-required` קיים, הגיע הזמן.
+</Callout>
+
+## חומת אש: `ufw`
+
+**חומת אש** (firewall) מחליטה אילו חיבורים מבחוץ מותר לקבל. בפרק 16 ראינו עם `ss` אילו פורטים "מאזינים". חומת האש היא השומר בכניסה לבניין: גם אם יש מישהו בדירה, השומר לא מכניס אורחים שלא ברשימה.
+
+**ufw** (Uncomplicated Firewall) היא הדרך הפשוטה לנהל חומת אש ב-Ubuntu. היא מותקנת ב-Ubuntu Desktop וב-Ubuntu Server (אבל לא ב-WSL, ששם Windows מנהלת את חומת האש).
+
+```bash
+sudo apt install ufw
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw enable
+sudo ufw status verbose
+```
+
+1. **`default deny incoming`**: כברירת מחדל, לחסום כל חיבור **נכנס**.
+2. **`default allow outgoing`**: ולאפשר כל חיבור **יוצא** (גלישה, עדכונים).
+3. **`allow OpenSSH`**: לפתוח את פורט 22, כדי שתוכלו להתחבר בחזרה.
+4. **`enable`**: להפעיל.
+
+<Callout type="danger" title="בשרת מרוחק: קודם allow, אחר כך enable">
+אם תריצו `sudo ufw enable` בשרת מרוחק **לפני** `sudo ufw allow OpenSSH`, חומת האש תחסום את חיבור ה-SSH שלכם, ולא תוכלו להתחבר בחזרה. הסדר בדוגמה הוא הסדר הנכון.
+</Callout>
+
+עוד כמה פקודות שימושיות:
+
+| פקודה | מה היא עושה |
+| --- | --- |
+| `sudo ufw allow 80/tcp` | לפתוח פורט 80 (אתר אינטרנט) |
+| `sudo ufw allow from 192.168.1.0/24 to any port 22` | SSH רק מהרשת הביתית |
+| `sudo ufw status numbered` | רשימת הכללים, עם מספרים |
+| `sudo ufw delete 3` | למחוק את כלל מספר 3 |
+
+ב-Fedora ובחלק מההפצות האחרות, הכלי המקביל הוא `firewalld`, עם הפקודה `firewall-cmd`.
+
+## מפתחות SSH: מנעול טוב יותר
+
+בפרק 16 התחברנו עם `ssh` וסיסמה. לסיסמאות יש שתי בעיות: אפשר לנחש אותן (ובוטים מנסים מיליוני ניחושים), וצריך להקליד אותן כל פעם.
+
+**מפתח SSH** הוא זוג של שני קבצים:
+
+- **מפתח פרטי** (private key): נשאר **רק** אצלכם, אף פעם לא יוצא מהמחשב. כמו המפתח של הבית.
+- **מפתח ציבורי** (public key): מעתיקים אותו לכל שרת שרוצים להתחבר אליו. כמו המנעול. אפשר לתת אותו לכל אחד, כי הוא לא פותח כלום לבד.
+
+השרת בודק שיש לכם את המפתח הפרטי שמתאים למנעול, **בלי** שהמפתח עצמו עובר ברשת.
+
+### יוצרים מפתח: `ssh-keygen`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ssh-keygen -t ed25519 -C "dana@laptop"
+  Generating public/private ed25519 key pair.
+  Enter file in which to save the key (/home/dana/.ssh/id_ed25519):
+  Enter passphrase (empty for no passphrase):
+  Enter same passphrase again:
+  Your identification has been saved in /home/dana/.ssh/id_ed25519
+  Your public key has been saved in /home/dana/.ssh/id_ed25519.pub
+  The key fingerprint is:
+  SHA256:4ZgsOKxaZrX0fSSUq2gMnkto4aiWI6cCe8OfeawpU2E dana@laptop
+  The key's randomart image is:
+  +--[ED25519 256]--+
+  |                 |
+  |         .       |
+  |        +        |
+  | . .E. = o       |
+  | .=.+.+ S .      |
+  |++.B.= o o       |
+  |==O.=.o . .      |
+  |BOBo +o  .       |
+  |B+o=*o           |
+  +----[SHA256]-----+
+`}</TerminalWindow>
+
+- **`-t ed25519`**: סוג המפתח. Ed25519 הוא המודרני, הקצר והבטוח. (תראו גם `rsa` במדריכים ישנים.)
+- **`-C`**: הערה, כדי לזהות את המפתח בהמשך. נהוג לכתוב משתמש ומחשב.
+- **מיקום**: לוחצים <Kbd>Enter</Kbd> כדי לקבל את ברירת המחדל.
+- **passphrase**: סיסמה שמגינה על המפתח הפרטי, אם מישהו יגנוב את הקובץ. (כמו בפרק 3, היא לא מופיעה כשמקלידים.) **מומלץ מאוד** לבחור אחת.
+
+התוצאה היא שני קבצים, עם הרשאות שונות מאוד:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -l ~/.ssh
+  total 8
+  -rw------- 1 dana dana 444 Nov 11 21:17 id_ed25519
+  -rw-r--r-- 1 dana dana  93 Nov 11 21:17 id_ed25519.pub
+  $ cat ~/.ssh/id_ed25519.pub
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGKT1CkigUXjL3JCxAzPvosnKvdTKZaKdJVwoTqxLZKe dana@laptop
+`}</TerminalWindow>
+
+הפרטי (`id_ed25519`) הוא `600`: רק אתם. הציבורי (`.pub`) הוא `644`, ואפשר להציג אותו ולשתף אותו בחופשיות.
+
+<Callout type="danger" title="המפתח הפרטי לא יוצא מהמחשב">
+לעולם אל תשלחו, תעלו או תדביקו בשום מקום את `id_ed25519` (בלי `.pub`). מי שמחזיק בו יכול להתחבר לכל שרת שסומך עליכם. אם הוא דלף, צרו זוג חדש והסירו את הציבורי הישן מכל השרתים.
+</Callout>
+
+### מעתיקים את המנעול לשרת: `ssh-copy-id`
+
+```bash
+ssh-copy-id dana@192.168.1.50
+```
+
+`ssh-copy-id` מתחברת לשרת (בפעם האחרונה עם סיסמה), ומוסיפה את המפתח הציבורי שלכם לקובץ `~/.ssh/authorized_keys` **בשרת**. מעכשיו:
+
+```bash
+ssh dana@192.168.1.50
+```
+
+מתחבר בלי סיסמת השרת. אם בחרתם passphrase, תתבקשו להקליד **אותה** (פעם אחת לכל סשן, אם `ssh-agent` פועל).
+
+ב-GitHub, GitLab ושירותים דומים, מדביקים את התוכן של קובץ ה-`.pub` בהגדרות החשבון (נעשה את זה בפרק 23).
+
+## הקשחת שרת SSH
+
+בשרת שמקבל חיבורי SSH (החבילה `openssh-server`), ההגדרות נמצאות ב-`/etc/ssh/sshd_config`. אחרי שמפתחות SSH עובדים, משנים שלוש שורות:
+
+```text title="/etc/ssh/sshd_config"
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+```
+
+- **`PermitRootLogin no`**: אסור להתחבר ישר כ-root. מתחברים כמשתמש רגיל, ומשתמשים ב-`sudo`.
+- **`PasswordAuthentication no`**: רק מפתחות. כל ניסיונות הניחוש של הבוטים נכשלים מיד.
+- **`PubkeyAuthentication yes`**: מאפשרת מפתחות (ברירת המחדל, אבל טוב לכתוב במפורש).
+
+בודקים שהתחביר תקין, ומפעילים מחדש:
+
+```bash
+sudo sshd -t
+sudo systemctl restart ssh
+```
+
+(ב-Fedora/Arch השירות נקרא `sshd`.)
+
+<Callout type="danger" title="אל תנעלו את עצמכם בחוץ">
+לפני `PasswordAuthentication no`, ודאו שהתחברות עם **מפתח** עובדת. ואחרי ה-`restart`, **אל תסגרו** את חלון ה-SSH הפתוח: פתחו חלון **חדש** ונסו להתחבר. אם זה נכשל, החלון הישן עדיין מחובר, ותוכלו לתקן. אם תסגרו אותו קודם, ייתכן שלא תהיה לכם דרך חזרה לשרת.
+</Callout>
+
+## מי היה כאן?
+
+כמה פקודות לבדוק מה קורה במערכת:
+
+| פקודה | מה היא מציגה |
+| --- | --- |
+| `who` | מי מחובר עכשיו |
+| `last` | היסטוריית התחברויות והפעלות מחדש |
+| `sudo lastb` | ניסיונות התחברות **כושלים** |
+| `grep "Failed password" /var/log/auth.log` | ניסיונות סיסמה כושלים ב-SSH |
+| `ss -tlnp` | אילו פורטים פתוחים, ואיזו תוכנה מאזינה (פרק 16) |
+
+בשרת שחשוף לאינטרנט, `sudo lastb` תראה אלפי ניסיונות כניסה של בוטים, עם שמות משתמש כמו `admin`, `test` ו-`oracle`. זו לא סיבה לפאניקה, אלא סיבה טובה לכבות סיסמאות.
+
+## רשימת בדיקה לשרת חדש
+
+<Checklist
+  id="ch22-server-hardening"
+  title="הקשחת שרת לינוקס"
+  items={[
+    "עדכנתי את כל המערכת (`sudo apt update && sudo apt upgrade`)",
+    "עדכוני אבטחה אוטומטיים פעילים (`unattended-upgrades`)",
+    "יצרתי משתמש רגיל עם `sudo`, ואני לא עובד כ-root",
+    "התחברות SSH עם מפתח עובדת",
+    "`PasswordAuthentication no` ו-`PermitRootLogin no` ב-sshd_config",
+    "חומת אש פעילה (`ufw`), ורק הפורטים הנחוצים פתוחים",
+    "בדקתי עם `ss -tlnp` שאין שירותים מאזינים שאני לא מכיר",
+  ]}
+/>
+
+<Exercise title="מפתח ראשון">
+1. בדקו אם כבר יש לכם מפתח SSH.
+2. אם אין, צרו מפתח Ed25519 עם הערה שמזהה אתכם, ועם passphrase.
+3. הציגו את המפתח **הציבורי** ואת טביעת האצבע שלו.
+4. בדקו את ההרשאות של `~/.ssh` ושל המפתח הפרטי.
+
+<Solution>
+
+```bash
+ls -l ~/.ssh
+ssh-keygen -t ed25519 -C "dana@laptop"
+cat ~/.ssh/id_ed25519.pub
+ssh-keygen -lf ~/.ssh/id_ed25519.pub
+stat -c '%a %n' ~/.ssh ~/.ssh/id_ed25519
+```
+
+1. אם יש קובץ בשם `id_ed25519` (או `id_rsa`), כבר יש לכם מפתח. **אל** תיצרו חדש בשם זהה: `ssh-keygen` תשאל אם לדרוס, ומפתח שנדרס לא חוזר.
+3. `-l` מציגה את טביעת האצבע (fingerprint): מזהה קצר של המפתח, למשל `256 SHA256:4Zgs... dana@laptop (ED25519)`.
+4. התשובה הנכונה: `700` לתיקייה ו-`600` למפתח הפרטי. אם ההרשאות פתוחות יותר, `ssh` תסרב להשתמש במפתח.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "הרשאה מינימלית", body: "משתמש רגיל, `sudo` לפקודה אחת, שירותים כמשתמש משלהם, `600` לקבצים פרטיים." },
+    { title: "עדכונים", body: "הצעד הכי חשוב. `unattended-upgrades` מתקין עדכוני אבטחה לבד." },
+    { title: "`ufw`", body: "חוסמים כל נכנס, ופותחים רק מה שצריך. בשרת מרוחק: allow לפני enable." },
+    { title: "מפתחות SSH", body: "`ssh-keygen` יוצר זוג, `ssh-copy-id` מעתיקה את הציבורי. ואז מכבים סיסמאות." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "איזה קובץ מותר לשתף עם שרתים ושירותים?",
+      options: [
+        { text: "`~/.ssh/id_ed25519`", why: "זה המפתח הפרטי. הוא לא יוצא מהמחשב לעולם." },
+        { text: "`~/.ssh/id_ed25519.pub`", why: "המפתח הציבורי הוא \"המנעול\", ומיועד בדיוק לזה." },
+        { text: "שניהם, אם מעבירים אותם בצורה מוצפנת", why: "את הפרטי לא מעבירים בכלל, גם לא מוצפן." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "בשרת מרוחק, מה הסדר הנכון בהגדרת `ufw`?",
+      options: [
+        { text: "`ufw enable`, ואז `ufw allow OpenSSH`", why: "ה-enable תחסום את ה-SSH שלכם עוד לפני שתספיקו לפתוח אותו." },
+        { text: "לא משנה, `ufw` שומרת על חיבורים קיימים", why: "אל תסמכו על זה בשרת שאין לכם גישה פיזית אליו." },
+        { text: "`ufw allow OpenSSH`, ואז `ufw enable`", why: "קודם פותחים את הדלת שלכם, ורק אז נועלים את השאר." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "מה הצעד האבטחתי עם ההשפעה הגדולה ביותר?",
+      options: [
+        { text: "לעדכן את המערכת באופן קבוע", why: "רוב הפריצות מנצלות פרצות ידועות שכבר תוקנו בעדכון." },
+        { text: "לשנות את פורט ה-SSH ל-2222", why: "זה מפחית רעש בלוגים, אבל לא עוצר תוקף אמיתי." },
+        { text: "להתקין אנטי-וירוס", why: "בשרתי לינוקס, עדכונים והגדרות נכונות חשובים הרבה יותר." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

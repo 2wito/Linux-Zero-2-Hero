@@ -1,0 +1,302 @@
+# רשתות בסיסיות
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זו **כתובת IP**, מה זה **DNS** ומה זה **פורט**.
+- לראות את הכתובות שלכם עם `ip a`.
+- לבדוק חיבור עם `ping`.
+- להוריד ולבדוק אתרים עם `curl` ו-`wget`.
+- לראות אילו פורטים פתוחים עם `ss`.
+- להתחבר למחשב מרוחק עם `ssh`, ולהעתיק קבצים עם `scp`.
+</Callout>
+
+## דואר, כתובות ודירות
+
+תחשבו על מכתב. כדי שיגיע, צריך:
+
+- **כתובת** של הבניין. ברשת זו **כתובת IP**, למשל `172.105.4.254`.
+- **ספר טלפונים** שמתרגם שם לכתובת. כי קל יותר לזכור "kernel.org" מאשר מספרים. ברשת זה **DNS**.
+- **מספר דירה** בתוך הבניין. במחשב אחד רצים הרבה שירותים, ולכל אחד יש **פורט** משלו: אתרים ב-`443` (או `80`), SSH ב-`22`.
+
+כל פקודה בפרק הזה בודקת חלק אחר בשרשרת הזו.
+
+## הכתובות שלי: `ip a`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ip -br a
+  lo               UNKNOWN        127.0.0.1/8 10.255.255.254/32 ::1/128
+  eth0             UP             172.31.190.105/20 fe80::215:5dff:fe3f:2b03/64
+`}</TerminalWindow>
+
+`ip a` (address) מציגה את **ממשקי הרשת** של המחשב ואת הכתובות שלהם. `-br` (brief) מציגה גרסה מקוצרת: שורה לכל ממשק. בלעדיו תקבלו הרבה יותר פרטים.
+
+- **`lo`** (loopback) הוא ממשק וירטואלי שמחבר את המחשב **לעצמו**. הכתובת `127.0.0.1`, או השם `localhost`, תמיד אומרת "המחשב הזה".
+- **`eth0`** הוא כרטיס הרשת. `UP` אומר שהוא מחובר. `172.31.190.105` היא הכתובת שלו ברשת המקומית, ו-`/20` מתאר את גודל הרשת.
+- הכתובות הארוכות עם נקודתיים הן **IPv6**, הדור החדש של כתובות IP.
+
+ייתכן שאצלכם הממשק ייקרא `wlan0` או `wlp2s0` (רשת אלחוטית) או `enp3s0`. השם תלוי בחומרה.
+
+<Callout type="tip" title="כתובת פרטית מול ציבורית">
+כתובות שמתחילות ב-`10.`, `172.16.`–`172.31.` או `192.168.` הן **פרטיות**: הן קיימות רק בתוך הרשת הביתית או המשרדית. לאינטרנט אתם יוצאים דרך הנתב, עם כתובת ציבורית אחת לכל הבית.
+</Callout>
+
+## יש חיבור? `ping`
+
+`ping` שולחת "הלו, אתה שם?" קטן ומודדת כמה זמן לוקח לקבל תשובה. `-c 3` (count) עוצרת אחרי 3 ניסיונות. בלעדיו `ping` ממשיכה עד <Kbd keys="Ctrl+C" />.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ping -c 3 kernel.org
+  PING kernel.org (172.105.4.254) 56(84) bytes of data.
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=1 ttl=44 time=162 ms
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=2 ttl=44 time=163 ms
+  64 bytes from tor.source.kernel.org (172.105.4.254): icmp_seq=3 ttl=44 time=163 ms
+
+  --- kernel.org ping statistics ---
+  3 packets transmitted, 3 received, 0% packet loss, time 2005ms
+  rtt min/avg/max/mdev = 162.432/162.842/163.176/0.308 ms
+`}</TerminalWindow>
+
+- בשורה הראשונה, DNS כבר תרגם את `kernel.org` ל-`172.105.4.254`.
+- `time=162 ms`: כמה זמן לקח הלוך וחזור. השרת הזה רחוק, ולכן 162 מילישניות.
+- `0% packet loss`: כל הבקשות קיבלו תשובה. החיבור תקין.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ping -c 1 nosuch.invalid
+  ping: nosuch.invalid: Name or service not known
+`}</TerminalWindow>
+
+`Name or service not known` היא שגיאה של **DNS**: השם לא תורגם לכתובת. זה עוזר לאבחן תקלה: אם `ping` לכתובת IP עובד אבל לשם לא, הבעיה בספר הטלפונים, לא בחיבור.
+
+<Callout type="tip" title="אין תשובה לא תמיד אומר שאין חיבור">
+הרבה שרתים מוגדרים לא לענות ל-`ping`, מטעמי אבטחה. אם `ping` נכשל אבל האתר נפתח בדפדפן, הכול בסדר.
+</Callout>
+
+## DNS: ספר הטלפונים
+
+`getent hosts` שואלת את המערכת "מה הכתובת של השם הזה?", בדיוק כמו שכל תוכנה עושה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ getent hosts www.kernel.org
+  2a04:4e42:7d::311 dualstack.m.sni.global.fastly.net www.kernel.org
+`}</TerminalWindow>
+
+השם `www.kernel.org` מצביע על כתובת IPv6 של Fastly, חברה שמגישה את האתר מהרבה שרתים ברחבי העולם. כלים מפורטים יותר לבדיקת DNS הם `dig` ו-`nslookup` (בחבילה `dnsutils` ב-Ubuntu).
+
+לפני שהמחשב שואל שרת DNS, הוא בודק קובץ מקומי: `/etc/hosts`. שורה כמו `127.0.0.1 myapp.local` שם גורמת לשם להצביע על המחשב שלכם. זה שימושי בפיתוח.
+
+## אתרים מהטרמינל: `curl` ו-`wget`
+
+### `curl`: לדבר עם שרתים
+
+`curl` שולחת בקשה לכתובת ומציגה את התשובה. `-I` מבקשת רק את **הכותרות** (headers), כלומר את "המעטפה" בלי המכתב:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -I https://kernel.org
+  HTTP/2 200
+  server: nginx
+  date: Wed, 11 Nov 2026 19:03:17 GMT
+  content-type: text/html; charset=utf-8
+  content-length: 20436
+  last-modified: Wed, 11 Nov 2026 17:54:39 GMT
+  ...
+`}</TerminalWindow>
+
+`200` הוא **קוד הסטטוס**: הכול בסדר. קודים שכדאי להכיר:
+
+| קוד | משמעות |
+| --- | --- |
+| `200` | הצלחה |
+| `301` / `302` | הדף עבר לכתובת אחרת (הפניה) |
+| `404` | הדף לא נמצא |
+| `500` | תקלה בשרת |
+
+בלי `-I`, `curl` מציגה את הדף עצמו. `-s` (silent) מעלימה את פס ההתקדמות:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -s https://www.kernel.org | head -4
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+          <title>The Linux Kernel Archives</title>
+  $ curl -s -o kernel.html https://www.kernel.org
+  $ ls -lh kernel.html
+  -rw-r--r-- 1 dana dana 20K Nov 11 21:03 kernel.html
+`}</TerminalWindow>
+
+`-o` (output) שומרת את התשובה בקובץ במקום להציג אותה.
+
+### `wget`: להוריד קבצים
+
+`wget` מתמחה בהורדות. היא שומרת את הקובץ בשם המקורי, ומראה התקדמות:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ wget https://www.kernel.org/finger_banner
+  --2026-11-11 21:03:42--  https://www.kernel.org/finger_banner
+  Resolving www.kernel.org (www.kernel.org)... 146.75.53.55, 2a04:4e42:7d::311
+  Connecting to www.kernel.org (www.kernel.org)|146.75.53.55|:443... connected.
+  HTTP request sent, awaiting response... 200 OK
+  Length: 780 [text/plain]
+  Saving to: ‘finger_banner’
+
+  finger_banner       100%[===================>]     780  --.-KB/s    in 0s
+
+  2026-11-11 21:03:42 (101 MB/s) - ‘finger_banner’ saved [780/780]
+
+  $ head -3 finger_banner
+  The latest stable version of the Linux kernel is:             7.3.4
+  The latest mainline version of the Linux kernel is:           7.4-rc2
+  The latest stable 7.3 version of the Linux kernel is:         7.3.4
+`}</TerminalWindow>
+
+הפלט מראה את כל השרשרת מתחילת הפרק: **Resolving** (DNS), **Connecting** לפורט `443`, **200 OK**, והשמירה. (הקובץ הזה, אגב, מראה מה הגרסה העדכנית של ליבת לינוקס.)
+
+<Callout type="warning" title="curl | bash">
+תראו באינטרנט הוראות כמו `curl https://... | sudo bash`. זה מוריד סקריפט ומריץ אותו מיד, בהרשאות root, בלי שראיתם מה יש בו. אם חייבים, הורידו קודם לקובץ (`curl -o install.sh ...`), קראו אותו, ורק אז הריצו. ובכל מקרה, רק מאתרים רשמיים שאתם סומכים עליהם.
+</Callout>
+
+## פורטים: `ss`
+
+`ss` (socket statistics) מראה אילו "דירות" בבניין מאוישות, כלומר אילו תוכנות **מאזינות** לחיבורים. נפעיל שרת אינטרנט קטן (מובנה ב-Python) ונראה אותו:
+
+<TerminalWindow title="~/site" user="dana@ubuntu">{`
+  $ python3 -m http.server 8000 > /dev/null 2>&1 &
+  [1] 590
+  $ ss -tln
+  State   Recv-Q   Send-Q      Local Address:Port     Peer Address:Port  Process
+  LISTEN  0        5                 0.0.0.0:8000          0.0.0.0:*
+  LISTEN  0        4096        127.0.0.53%lo:53            0.0.0.0:*
+  LISTEN  0        4096           127.0.0.54:53            0.0.0.0:*
+  LISTEN  0        1000       10.255.255.254:53            0.0.0.0:*
+  $ curl http://localhost:8000/index.html
+  <h1>hello</h1>
+  $ kill %1
+`}</TerminalWindow>
+
+- `-t` = TCP, `-l` = רק מאזינים (listening), `-n` = מספרים ולא שמות.
+- `0.0.0.0:8000`: השרת שלנו מאזין לפורט 8000 **בכל הכתובות**, כך שגם מחשבים אחרים ברשת יכולים להגיע אליו.
+- `127.0.0.53:53`: שירות ה-DNS המקומי, שמאזין **רק** בתוך המחשב.
+- `curl` לכתובת `localhost:8000` קיבלה את הקובץ מהשרת.
+
+ומה קורה כשאף אחד לא מאזין?
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ curl -I http://localhost:9999
+  curl: (7) Failed to connect to localhost port 9999 after 0 ms: Couldn't connect to server
+`}</TerminalWindow>
+
+`Couldn't connect` אומר שהגעתם לבניין, אבל אין אף אחד בדירה. בפרק 22 נלמד לסגור פורטים שלא צריכים להיות פתוחים, עם חומת אש.
+
+## `ssh`: טרמינל במחשב אחר
+
+**SSH** (Secure Shell) פותח טרמינל במחשב מרוחק, בחיבור מוצפן. ככה מנהלים כמעט כל שרת לינוקס בעולם: אין להם מסך, רק `ssh`.
+
+```bash
+ssh dana@192.168.1.50
+```
+
+`dana` הוא שם המשתמש **במחשב המרוחק**, ואחרי ה-`@` הכתובת שלו (או שם). אחרי הסיסמה תקבלו prompt של המחשב השני, וכל פקודה רצה שם. `exit` מחזירה אתכם הביתה.
+
+בפעם הראשונה שמתחברים לשרת, תופיע שאלה כזו:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ ssh -T git@github.com
+  The authenticity of host 'github.com (20.217.135.5)' can't be established.
+  ED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.
+  This key is not known by any other names.
+  Are you sure you want to continue connecting (yes/no/[fingerprint])? no
+  Host key verification failed.
+`}</TerminalWindow>
+
+זו "תעודת הזהות" של השרת. אחרי `yes`, היא נשמרת ב-`~/.ssh/known_hosts`. אם בפעם הבאה השרת יציג תעודה **אחרת**, `ssh` תתריע בגדול. (כאן ענינו `no`, ולכן החיבור לא נמשך.)
+
+<Callout type="warning" title="אזהרת REMOTE HOST IDENTIFICATION HAS CHANGED">
+אם `ssh` מציגה את האזהרה הזו, אל תמחקו אותה אוטומטית. היא יכולה לנבוע משרת שהותקן מחדש, אבל גם ממישהו שמתחזה לשרת. בדקו עם מי שמנהל את השרת לפני שאתם ממשיכים.
+</Callout>
+
+בפרק 22 נחליף את הסיסמה ב**מפתחות SSH**, שהם בטוחים ונוחים יותר.
+
+## `scp`: להעתיק קבצים דרך SSH
+
+`scp` היא `cp` דרך הרשת. המבנה זהה: **מקור** ואז **יעד**, ובצד המרוחק כותבים `משתמש@שרת:נתיב`:
+
+```bash
+scp report.pdf dana@192.168.1.50:~/documents/
+scp dana@192.168.1.50:~/logs/app.log .
+scp -r website/ dana@192.168.1.50:~/
+```
+
+1. מהמחשב שלכם **לשרת**.
+2. מהשרת **אליכם**. `.` בסוף = התיקייה הנוכחית.
+3. `-r` מעתיקה תיקייה שלמה.
+
+<Callout type="warning" title="scp דורסת בלי לשאול">
+כמו `cp`, `scp` מחליפה קובץ קיים ביעד באותו שם, בלי אזהרה. בדקו את נתיב היעד, במיוחד כשמעתיקים לשרת שאחרים עובדים עליו.
+</Callout>
+
+<Exercise title="אבחון רשת">
+1. מה הכתובת של כרטיס הרשת שלכם?
+2. בדקו אם יש חיבור ל-`kernel.org`, עם 2 ניסיונות בלבד.
+3. מה קוד הסטטוס של `https://www.kernel.org/nosuchpage`?
+4. הורידו את `https://www.kernel.org/finger_banner` ובדקו מה הגרסה היציבה האחרונה של הליבה.
+
+<Solution>
+
+```bash
+ip -br a
+ping -c 2 kernel.org
+curl -I https://www.kernel.org/nosuchpage
+wget https://www.kernel.org/finger_banner
+head -1 finger_banner
+```
+
+1. בשורה של `eth0` (או `wlan0`), הכתובת שלפני ה-`/`.
+2. אם יש `0% packet loss`, החיבור תקין.
+3. השורה הראשונה תהיה `HTTP/2 404`: הדף לא קיים.
+4. השורה הראשונה בקובץ. הגרסה תלויה ביום שבו תריצו.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "IP, DNS, פורט", body: "כתובת, ספר טלפונים ומספר דירה. `localhost` = המחשב שלכם." },
+    { title: "`ip a` / `ping`", body: "מה הכתובות שלי, והאם יש חיבור (וכמה מהר)." },
+    { title: "`curl` / `wget`", body: "לבדוק אתרים (`-I` לכותרות וקוד סטטוס) ולהוריד קבצים." },
+    { title: "`ss` / `ssh` / `scp`", body: "מי מאזין לאיזה פורט, טרמינל מרוחק, והעתקת קבצים מוצפנת." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "`ping 8.8.8.8` עובד, אבל `ping google.com` נותן `Name or service not known`. מה הבעיה?",
+      options: [
+        { text: "אין חיבור לאינטרנט", why: "יש: הפינג לכתובת IP הצליח." },
+        { text: "בעיה ב-DNS: השם לא מתורגם לכתובת", why: "החיבור תקין, ורק \"ספר הטלפונים\" לא עונה." },
+        { text: "Google חסמה אתכם", why: "השגיאה מגיעה עוד לפני שנשלחה בקשה ל-Google." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "מה הפקודה `curl -I https://example.com` מציגה?",
+      options: [
+        { text: "רק את הכותרות של התשובה, כולל קוד הסטטוס", why: "`-I` מבקשת את \"המעטפה\" בלי התוכן." },
+        { text: "את כתובת ה-IP של האתר", why: "בשביל זה יש `getent hosts` או `ping`." },
+        { text: "את כל קוד ה-HTML של הדף", why: "זה מה ש-`curl` בלי `-I` עושה." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "איך מעתיקים את `notes.txt` לתיקיית הבית של `dana` בשרת `10.0.0.5`?",
+      options: [
+        { text: "`cp notes.txt 10.0.0.5:~`", why: "`cp` לא יודעת לעבוד דרך הרשת." },
+        { text: "`ssh notes.txt dana@10.0.0.5`", why: "`ssh` פותחת טרמינל, לא מעתיקה קבצים." },
+        { text: "`scp notes.txt dana@10.0.0.5:~/`", why: "מקור, ואז יעד בפורמט `משתמש@שרת:נתיב`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

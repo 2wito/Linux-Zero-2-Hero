@@ -1,0 +1,395 @@
+# ניהול תוכנות וחבילות
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **חבילה**, **מנהל חבילות** ו**מאגר**.
+- לחפש, להתקין, לעדכן ולהסיר תוכנות עם `apt`, `dnf` ו-`pacman`.
+- מה ההבדל בין `update` ל-`upgrade`.
+- מה זה **תלויות**.
+- בקצרה: Snap ו-Flatpak.
+</Callout>
+
+## חנות אפליקציות, בגרסת טרמינל
+
+בטלפון לא מורידים אפליקציות מאתרים אקראיים. נכנסים לחנות, מחפשים, לוחצים "התקנה", והחנות גם דואגת לעדכונים.
+
+בלינוקס זה עובד אותו דבר, והרבה לפני שהיו טלפונים חכמים:
+
+- **חבילה** (package) היא תוכנה ארוזה בקובץ אחד, מוכנה להתקנה.
+- **מאגר** (repository) הוא "המדף של החנות": שרת שמחזיק אלפי חבילות שההפצה בדקה.
+- **מנהל החבילות** הוא "אפליקציית החנות": הוא מחפש, מוריד, מתקין, מעדכן ומסיר.
+
+לכל משפחת הפצות יש מנהל חבילות משלה: `apt` ב-Debian/Ubuntu, `dnf` ב-Fedora/RHEL ו-`pacman` ב-Arch. הרעיונות זהים, רק המילים שונות.
+
+## מחפשים תוכנה
+
+נחפש את `cowsay`, תוכנה קטנה ומשעשעת שמציירת פרה שמדברת:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt search --names-only '^cowsay'
+  Sorting... Done
+  Full Text Search... Done
+  cowsay/noble,noble 3.03+dfsg2-8 all
+    configurable talking cow
+
+  cowsay-off/noble,noble 3.03+dfsg2-8 all
+    configurable talking cow (offensive cows)
+`}</TerminalWindow>
+
+- `search` מחפשת במאגרים. בלי `--names-only` היא מחפשת גם בתיאורים, ומחזירה הרבה יותר תוצאות.
+- `'^cowsay'` אומר "שמות שמתחילים ב-cowsay". (`^` הוא חלק מ-regex, שנכיר בפרק 13.)
+- בכל תוצאה: שם החבילה, המאגר (`noble` הוא שם הקוד של Ubuntu 24.04), הגרסה ותיאור קצר.
+
+לפרטים מלאים על חבילה אחת, `apt show`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt show cowsay
+  Package: cowsay
+  Version: 3.03+dfsg2-8
+  Priority: optional
+  Section: universe/games
+  Origin: Ubuntu
+  Installed-Size: 93.2 kB
+  Depends: libtext-charwidth-perl, perl:any
+  Download-Size: 18.6 kB
+  APT-Sources: http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages
+  Description: configurable talking cow
+  ...
+`}</TerminalWindow>
+
+(קיצרנו את הפלט.) שימו לב לשורה `Depends`, נחזור אליה בעוד רגע.
+
+## מתקינים
+
+נסו להתקין בלי `sudo`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt install cowsay
+  E: Could not open lock file /var/lib/dpkg/lock-frontend - open (13: Permission denied)
+  E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), are you root?
+`}</TerminalWindow>
+
+`are you root?`: התקנת תוכנה משנה את המערכת לכל המשתמשים, ולכן צריך הרשאות ניהול. וגם `E:` בתחילת שורה אצל apt פירושו Error.
+
+<Callout type="warning" title="sudo: רק ממקורות שאתם סומכים עליהם">
+התקנה עם `sudo` נותנת לחבילה הרשאות root מלאות. התקינו מהמאגרים הרשמיים של ההפצה, ואל תוסיפו מאגרים או תריצו סקריפטי התקנה מאתרים שאתם לא מכירים.
+</Callout>
+
+הפקודות לפי ההפצה שלכם:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update
+sudo apt install cowsay
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install cowsay
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S cowsay
+```
+
+</Distro>
+<Distro id="wsl">
+
+ב-WSL עם Ubuntu, בדיוק כמו ב-Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install cowsay
+```
+
+</Distro>
+<Distro id="macos">
+
+ל-macOS אין מנהל חבילות מובנה. הפופולרי הוא **Homebrew** (מתקינים לפי ההוראות באתר brew.sh), ואז:
+
+```bash
+brew install cowsay
+```
+
+</Distro>
+</DistroTabs>
+
+ב-Ubuntu, `apt install` תציג רשימה של מה שתותקן ותשאל `Do you want to continue? [Y/n]`. לוחצים <Kbd>Enter</Kbd> (ה-`Y` הגדולה היא ברירת המחדל), וזהו:
+
+```bash
+cowsay "שלום"
+```
+
+### "רגע, פשוט תתקין לי"
+
+נוח לדעת: אם תקלידו ב-Ubuntu פקודה שלא מותקנת, המערכת תגיד לכם איזו חבילה צריך:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cowsay hi
+  Command 'cowsay' not found, but can be installed with:
+  sudo apt install cowsay
+`}</TerminalWindow>
+
+## תלויות
+
+רוב התוכנות לא עומדות לבד. הן משתמשות בספריות ובתוכנות אחרות, כמו מתכון שצריך גם קמח וגם ביצים. אלה **התלויות** (dependencies).
+
+ב-`apt show` ראינו ש-cowsay תלויה ב-`perl`. מנהל החבילות פותר את זה לבד: הוא מתקין את כל מה שחסר, ובסדר הנכון. אפשר לראות מה הוא **היה עושה** בלי לשנות כלום, עם `-s` (simulate):
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt-get install -s cowsay
+  NOTE: This is only a simulation!
+        apt-get needs root privileges for real execution.
+        Keep also in mind that locking is deactivated,
+        so don't depend on the relevance to the real current situation!
+  Reading package lists...
+  Building dependency tree...
+  Reading state information...
+  Suggested packages:
+    filters cowsay-off
+  The following NEW packages will be installed:
+    cowsay
+  0 upgraded, 1 newly installed, 0 to remove and 52 not upgraded.
+  Inst cowsay (3.03+dfsg2-8 Ubuntu:24.04/noble [all])
+  Conf cowsay (3.03+dfsg2-8 Ubuntu:24.04/noble [all])
+`}</TerminalWindow>
+
+כאן `perl` כבר מותקן, אז רק cowsay עצמה חדשה. `Suggested packages` הן המלצות, שלא יותקנו אוטומטית. ו-`52 not upgraded` מספר שיש 52 חבילות שמחכות לעדכון. מיד נגיע לזה.
+
+## עדכונים: `update` מול `upgrade`
+
+זה הבלבול הכי נפוץ אצל מתחילים, כי המילים נשמעות אותו דבר:
+
+| פקודה | מה היא עושה | כמו בחנות |
+| --- | --- | --- |
+| `apt update` | מורידה את **הרשימה** העדכנית של מה שיש במאגרים | לרענן את הקטלוג |
+| `apt upgrade` | **מתקינה** את הגרסאות החדשות של מה שכבר מותקן אצלכם | לעדכן את האפליקציות |
+
+`update` לא מעדכנת שום תוכנה. לכן תמיד מריצים את שתיהן, בסדר הזה. אפשר לראות מה מחכה לעדכון:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt list --upgradable
+  Listing... Done
+  apparmor/noble-updates 4.0.1really4.0.1-0ubuntu0.24.04.7 amd64 [upgradable from: 4.0.1really4.0.1-0ubuntu0.24.04.4]
+  apport-core-dump-handler/noble-updates,noble-updates 2.28.3-0ubuntu0.1 all [upgradable from: 2.28.1-0ubuntu3.8]
+  apport/noble-updates,noble-updates 2.28.3-0ubuntu0.1 all [upgradable from: 2.28.1-0ubuntu3.8]
+  ...
+`}</TerminalWindow>
+
+וכך מעדכנים את כל המערכת:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update
+sudo apt upgrade
+```
+
+</Distro>
+<Distro id="fedora">
+
+ב-`dnf` הרשימה מתרעננת אוטומטית, אז מספיקה פקודה אחת:
+
+```bash
+sudo dnf upgrade
+```
+
+</Distro>
+<Distro id="arch">
+
+`-Syu` הוא שלושה דברים יחד: סנכרון (S), רענון הרשימה (y) ועדכון הכול (u):
+
+```bash
+sudo pacman -Syu
+```
+
+</Distro>
+<Distro id="wsl">
+
+```bash
+sudo apt update
+sudo apt upgrade
+```
+
+</Distro>
+<Distro id="macos">
+
+```bash
+brew update
+brew upgrade
+```
+
+</Distro>
+</DistroTabs>
+
+<Callout type="tip" title="עדכנו באופן קבוע">
+רוב העדכונים הם תיקוני אבטחה. מערכת לא מעודכנת היא הדרך הנפוצה ביותר לפריצה. נחזור לזה בפרק 22.
+</Callout>
+
+## מה מותקן אצלי?
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ apt list --installed curl
+  Listing... Done
+  curl/noble-updates,noble-security,now 8.5.0-2ubuntu10.12 amd64 [installed]
+  N: There is 1 additional version. Please use the '-a' switch to see it
+`}</TerminalWindow>
+
+`[installed]` אומר ש-curl מותקנת, ובאיזו גרסה. בלי שם חבילה, `apt list --installed` תציג את **כל** החבילות. בהתקנה רגילה של Ubuntu יש יותר מאלף.
+
+## מסירים
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt remove cowsay
+sudo apt autoremove
+```
+
+`remove` מסירה את התוכנה. `autoremove` מנקה תלויות שהותקנו בשבילה ואף אחד כבר לא צריך.
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf remove cowsay
+```
+
+</Distro>
+<Distro id="arch">
+
+`-Rs` מסירה גם תלויות שאף אחד אחר לא צריך:
+
+```bash
+sudo pacman -Rs cowsay
+```
+
+</Distro>
+<Distro id="wsl">
+
+```bash
+sudo apt remove cowsay
+sudo apt autoremove
+```
+
+</Distro>
+<Distro id="macos">
+
+```bash
+brew uninstall cowsay
+```
+
+</Distro>
+</DistroTabs>
+
+<Callout type="warning" title="קראו את הרשימה לפני Y">
+`apt remove` ו-`autoremove` מציגות מה עומד להימחק ושואלות לפני שהן ממשיכות. קראו את הרשימה. אם היא ארוכה ומפתיעה (למשל כוללת את שולחן העבודה), ענו `n`.
+</Callout>
+
+## דף עזר: שלושת מנהלי החבילות
+
+| פעולה | `apt` | `dnf` | `pacman` |
+| --- | --- | --- | --- |
+| רענון רשימה | `apt update` | (אוטומטי) | `pacman -Sy` |
+| עדכון הכול | `apt upgrade` | `dnf upgrade` | `pacman -Syu` |
+| חיפוש | `apt search X` | `dnf search X` | `pacman -Ss X` |
+| מידע | `apt show X` | `dnf info X` | `pacman -Si X` |
+| התקנה | `apt install X` | `dnf install X` | `pacman -S X` |
+| הסרה | `apt remove X` | `dnf remove X` | `pacman -R X` |
+
+(פקודות שמשנות את המערכת צריכות `sudo`.)
+
+## Snap ו-Flatpak בקצרה
+
+לפעמים תוכנה לא נמצאת במאגר, או שהגרסה שם ישנה. בשביל זה יש **Snap** (של Canonical, מותקן ב-Ubuntu) ו-**Flatpak** (פופולרי ב-Fedora). הם אורזים את התוכנה **יחד עם כל התלויות שלה**, כך שהיא עובדת בכל הפצה.
+
+```bash
+snap find vlc
+sudo snap install vlc
+snap list
+```
+
+היתרון: גרסאות עדכניות, ואותה חבילה בכל הפצה. החיסרון: קבצים גדולים יותר, ולפעמים פתיחה איטית יותר. לרוב הדברים, מנהל החבילות הרגיל הוא הבחירה הראשונה. (כבר פגשנו מקרה כזה בפרק 8, עם `tldr`.)
+
+## מאיפה מגיעות החבילות?
+
+רשימת המאגרים ב-Ubuntu 24.04 נמצאת ב-`/etc/apt/sources.list.d/ubuntu.sources`. לא צריך לערוך אותה. מספיק לדעת שהיא קיימת, ושכל `apt update` קורא ממנה.
+
+<Callout type="warning" title="מאגרים חיצוניים (PPA) ו-curl | bash">
+תיתקלו בהוראות כמו "הוסיפו את ה-PPA הזה" או `curl ... | sudo bash`. שתיהן נותנות לגורם חיצוני להתקין קוד בהרשאות root. עשו את זה רק עם פרויקטים מוכרים ורשמיים (למשל Docker או Node.js מהאתר הרשמי שלהם).
+</Callout>
+
+<Exercise title="סיור בחנות">
+1. חפשו חבילה בשם `sl` עם `apt search --names-only '^sl$'`. מה התיאור שלה?
+2. בדקו עם `apt show sl` באיזה גודל היא.
+3. בדקו מה `apt` הייתה עושה בהתקנה שלה, בלי להתקין באמת.
+4. (אם יש לכם `sudo`) התקינו אותה, הריצו `sl`, ואז הסירו אותה.
+
+<Solution>
+1. התיאור הוא "Correct you if you type `sl` by mistake". `sl` היא "Steam Locomotive": רכבת שחוצה את המסך כשמקלידים בטעות `sl` במקום `ls`.
+2. בשורות `Installed-Size` (60.4 kB) ו-`Download-Size` (12.7 kB).
+3. `apt-get install -s sl`. ה-`-s` הוא סימולציה, ולכן לא צריך `sudo`.
+4. בסדר הזה:
+
+```bash
+sudo apt install sl
+sl
+sudo apt remove sl
+```
+
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "חבילה ומאגר", body: "תוכנה ארוזה, ו\"מדף\" רשמי שממנו מנהל החבילות מוריד אותה." },
+    { title: "`apt` / `dnf` / `pacman`", body: "אותם רעיונות בשלוש המשפחות: search, install, remove, upgrade." },
+    { title: "`update` ≠ `upgrade`", body: "update מרעננת את הרשימה. upgrade מתקינה את הגרסאות החדשות." },
+    { title: "תלויות", body: "מנהל החבילות מתקין לבד את כל מה שתוכנה צריכה." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "הרצתם `sudo apt update`. מה קרה לתוכנות שלכם?",
+      options: [
+        { text: "הן עודכנו לגרסה האחרונה", why: "בשביל זה צריך `apt upgrade`." },
+        { text: "שום דבר. רק רשימת החבילות התרעננה", why: "update מרעננת את הקטלוג. עכשיו `upgrade` תדע מה חדש." },
+        { text: "הן הוסרו", why: "update לא מסירה כלום." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "איך מתקינים חבילה ב-Fedora?",
+      options: [
+        { text: "`sudo dnf install X`", why: "Fedora שייכת למשפחת Red Hat, עם `dnf`." },
+        { text: "`sudo pacman -S X`", why: "`pacman` הוא של Arch." },
+        { text: "`sudo apt install X`", why: "`apt` הוא של משפחת Debian." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "למה `apt install` בלי `sudo` נכשלת?",
+      options: [
+        { text: "כי אין אינטרנט", why: "השגיאה אומרת `are you root?`, כלומר בעיה של הרשאות." },
+        { text: "כי החבילה לא קיימת", why: "אז הייתם רואים `Unable to locate package`." },
+        { text: "כי התקנה משנה את המערכת לכל המשתמשים, וזה דורש הרשאות root", why: "ולכן מתקינים עם `sudo`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

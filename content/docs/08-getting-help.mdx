@@ -1,0 +1,288 @@
+# איך מוצאים עזרה
+
+<Callout type="info" title="מה נלמד בפרק">
+- לקבל עזרה מהירה מכל פקודה עם `--help`.
+- לקרוא את המדריך הרשמי עם `man`, ולחפש בו.
+- למצוא את הפקודה הנכונה כשלא יודעים איך קוראים לה.
+- לקבל דוגמאות מוכנות עם **tldr**.
+- לפענח את הודעות השגיאה הנפוצות.
+</Callout>
+
+## אף אחד לא זוכר הכול
+
+גם מי שעובד עם לינוקס עשרים שנה לא זוכר את כל האפשרויות של כל פקודה. הסוד הוא לא לזכור, אלא **לדעת איפה לחפש**.
+
+תחשבו על מכשיר חשמלי חדש: יש לו מדבקה קטנה עם הוראות בסיסיות, יש חוברת הוראות מלאה בקופסה, ויש חבר שפשוט מראה לכם "תלחץ כאן". גם בטרמינל יש את שלושתם:
+
+| כלי | כמו... | מתי משתמשים |
+| --- | --- | --- |
+| `--help` | המדבקה על המכשיר | תזכורת מהירה לאפשרויות |
+| `man` | חוברת ההוראות המלאה | כשרוצים להבין לעומק |
+| `tldr` | חבר שמראה דוגמה | כשרוצים פשוט דוגמה שעובדת |
+
+## עזרה מהירה: `--help`
+
+כמעט כל פקודה מקבלת את האפשרות `--help` ומדפיסה סיכום קצר של איך משתמשים בה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir --help
+  Usage: mkdir [OPTION]... DIRECTORY...
+  Create the DIRECTORY(ies), if they do not already exist.
+
+  Mandatory arguments to long options are mandatory for short options too.
+    -m, --mode=MODE   set file mode (as in chmod), not a=rwx - umask
+    -p, --parents     no error if existing, make parent directories as needed,
+                      with their file modes unaffected by any -m option.
+    -v, --verbose     print a message for each created directory
+    -Z                   set SELinux security context of each created directory
+                           to the default type
+        --context[=CTX]  like -Z, or if CTX is specified then set the SELinux
+                           or SMACK security context to CTX
+        --help        display this help and exit
+        --version     output version information and exit
+`}</TerminalWindow>
+
+איך קוראים את זה?
+
+- **`Usage`** מראה את מבנה הפקודה. מה שבסוגריים מרובעים `[ ]` הוא **רשות**. שלוש נקודות `...` אומרות "אפשר כמה". כלומר: `mkdir`, אפשר אפשרויות, ולפחות תיקייה אחת.
+- **רשימת האפשרויות**: לכל אפשרות הצורה הקצרה, הארוכה, והסבר. הנה `-p` שהכרנו בפרק 6.
+
+<Callout type="warning" title="-h הוא לא תמיד עזרה">
+בהרבה פקודות `-h` אומר עזרה, אבל לא תמיד. ב-`ls`, `-h` אומר "גדלים קריאים" (זוכרים את `ls -lh`?). `--help` עם שני מקפים הוא הבחירה הבטוחה.
+</Callout>
+
+## המדריך המלא: `man`
+
+`man` (manual) פותחת את **דף ה-man** של פקודה: המדריך הרשמי שמותקן במערכת. הוא נפתח ב-`less`, אז כל המקשים מהפרק הקודם עובדים כאן:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ man ls
+  LS(1)                            User Commands                           LS(1)
+
+  NAME
+         ls - list directory contents
+
+  SYNOPSIS
+         ls [OPTION]... [FILE]...
+
+  DESCRIPTION
+         List  information  about  the FILEs (the current directory by default).
+`}</TerminalWindow>
+
+לכל דף man יש אותם חלקים:
+
+| חלק | מה יש בו |
+| --- | --- |
+| `NAME` | שם הפקודה ותיאור של שורה אחת |
+| `SYNOPSIS` | המבנה, כמו `Usage` ב-`--help` |
+| `DESCRIPTION` | הסבר מלא וכל האפשרויות |
+| `EXAMPLES` | דוגמאות (לא בכל דף, אבל כשיש, זה זהב) |
+
+**לחפש בתוך הדף**: <Kbd>/</Kbd> ואחריו מילה, למשל `/size`, ואז <Kbd>n</Kbd> לתוצאה הבאה. **לצאת**: <Kbd>q</Kbd>.
+
+<Callout type="tip" title="ה-(1) בכותרת">
+`LS(1)` אומר שהדף נמצא ב**פרק 1** של המדריך: פקודות למשתמשים. יש עוד פרקים, למשל פרק 5 לפורמטים של קבצי הגדרות. בהתחלה לא צריך לחשוב על זה.
+</Callout>
+
+## לא יודעים איך קוראים לפקודה?
+
+`man -k` (או בשמה השני, `apropos`) מחפשת מילה בתיאורים של **כל** הפקודות. שימושי כשאתם יודעים מה אתם רוצים לעשות, אבל לא איך קוראים לכלי:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ man -k "list directory"
+  dir (1)              - list directory contents
+  ls (1)               - list directory contents
+  vdir (1)             - list directory contents
+`}</TerminalWindow>
+
+ובכיוון ההפוך, `whatis` נותנת את התיאור של שורה אחת לפקודה שאתם כבר מכירים:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ whatis ls
+  ls (1)               - list directory contents
+`}</TerminalWindow>
+
+## דוגמאות מוכנות: tldr
+
+דפי man מדויקים, אבל ארוכים. **tldr** (קיצור של "too long; didn't read", "ארוך מדי, לא קראתי") מציג רק את הדוגמאות השימושיות ביותר. את הדפים כותבת קהילה של מתנדבים.
+
+כך מתקינים אותו:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo snap install tldr
+```
+
+<Callout type="warning" title="למה לא apt?">
+ב-Ubuntu 24.04 יש ב-apt חבילה בשם `tealdeer`, אבל הגרסה שלה ישנה ולא מצליחה להוריד את הדפים. לכן ב-Ubuntu עדיף להתקין דרך `snap`, וזו גם האפשרות הראשונה ש-Ubuntu עצמה מציעה.
+</Callout>
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install tealdeer
+tldr --update
+```
+
+`tealdeer` היא תוכנת tldr מהירה. `tldr --update` מוריד את כל הדפים פעם אחת, ואחרי זה הם זמינים גם בלי אינטרנט.
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S tealdeer
+tldr --update
+```
+
+`tealdeer` היא תוכנת tldr מהירה. `tldr --update` מוריד את כל הדפים פעם אחת, ואחרי זה הם זמינים גם בלי אינטרנט.
+
+</Distro>
+</DistroTabs>
+
+ועכשיו:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ tldr mkdir
+
+    mkdir
+
+    Create directories and set their permissions.
+    More information: https://www.gnu.org/software/coreutils/manual/html_node/mkdir-invocation.html.
+
+    - Create specific directories:
+      mkdir path/to/directory1 path/to/directory2 ...
+
+    - Create specific directories and their parents if needed:
+      mkdir -p path/to/directory1 path/to/directory2 ...
+`}</TerminalWindow>
+
+כל דוגמה היא תיאור ופקודה מוכנה. את החלקים כמו `path/to/directory1` מחליפים בנתיבים שלכם.
+
+<Callout type="tip" title="בלי להתקין כלום">
+אותם דפים זמינים גם באתר הרשמי של tldr: [tldr.inbrowser.app](https://tldr.inbrowser.app). נוח במיוחד מהטלפון.
+</Callout>
+
+## מה זו הפקודה הזו בכלל?
+
+לפעמים רוצים לדעת **מה** הפקודה: תוכנה נפרדת, קיצור, או חלק מהמעטפת עצמה. `type` עונה על זה, ו-`which` מראה איפה התוכנה יושבת בדיסק:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ type cd
+  cd is a shell builtin
+  $ type ls
+  ls is aliased to \`ls --color=auto'
+  $ which ls
+  /usr/bin/ls
+`}</TerminalWindow>
+
+- `cd` היא **פקודה מובנית** (builtin) של המעטפת, לא תוכנה נפרדת. לכן אין לה דף man משלה, ועזרה עליה מקבלים עם `help cd`.
+- `ls` היא **כינוי** (alias): כשמקלידים `ls`, המעטפת בעצם מריצה `ls --color=auto`. מכאן הצבעים. נלמד ליצור כינויים בפרק 15.
+- `which` מראה שהתוכנה האמיתית נמצאת ב-`/usr/bin/ls`.
+
+## לקרוא הודעות שגיאה
+
+הודעת שגיאה היא לא כישלון, היא **רמז**. כמעט תמיד היא אומרת בדיוק מה הבעיה. ארבע ההודעות שתפגשו הכי הרבה:
+
+| ההודעה | מה היא אומרת | מה בודקים |
+| --- | --- | --- |
+| `command not found` | אין פקודה בשם הזה | שגיאת כתיב? אותיות גדולות? אולי צריך להתקין אותה |
+| `No such file or directory` | הקובץ או התיקייה לא קיימים בנתיב הזה | `pwd` כדי לראות איפה אתם, ו-`ls` כדי לראות מה יש |
+| `Permission denied` | אין לכם הרשאה | של מי הקובץ? על זה בפרק 9 |
+| `Is a directory` | ניסיתם להתייחס לתיקייה כאל קובץ | אולי חסר `-r`, כמו ב-`rm -r` |
+
+המבנה קבוע: **שם הפקודה**, נקודתיים, **על מה** היא נכשלה, ו**למה**:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat recipe.txt
+  cat: recipe.txt: No such file or directory
+`}</TerminalWindow>
+
+קוראים: "`cat` ניסתה לקרוא את `recipe.txt`, והקובץ לא קיים". אולי הוא נקרא `recipes.txt`? אולי הוא בתיקייה אחרת?
+
+<Callout type="danger" title="לא מעתיקים פקודות בעיניים עצומות">
+כשמחפשים פתרון באינטרנט, או שואלים צ'אט של בינה מלאכותית, תקבלו הרבה פקודות מוכנות. לפני שאתם מריצים אחת, ובמיוחד אם יש בה `sudo` או `rm`, ודאו שאתם מבינים מה היא עושה. `--help` ו-`man` בדיוק בשביל זה.
+</Callout>
+
+<Exercise title="מצאו את האפשרות בעצמכם">
+`ls` יודעת למיין קבצים לפי **גודל**, מהגדול לקטן. השתמשו ב-`man ls` כדי למצוא את האפשרות הנכונה, ואז נסו אותה עם `ls -l`.
+
+<Solution>
+פתחו `man ls`, לחצו <Kbd>/</Kbd>, הקלידו `size` ולחצו <Kbd>Enter</Kbd>. עם <Kbd>n</Kbd> תגיעו לשורה:
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ man ls
+         -S     sort by file size, largest first
+`}</TerminalWindow>
+
+צאו עם <Kbd>q</Kbd> ונסו:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -lS
+`}</TerminalWindow>
+
+הקובץ הגדול ביותר יופיע ראשון. שימו לב ש-`S` היא אות גדולה: `-s` הקטנה עושה משהו אחר לגמרי.
+</Solution>
+</Exercise>
+
+<Exercise title="פענחו את השגיאה">
+מה הבעיה בכל אחת מהפקודות, ואיך מתקנים?
+
+1. `Ls`
+2. `cd /hmoe/dana`
+3. `rm photos` (כש-`photos` היא תיקייה)
+
+<Solution>
+1. `Command 'Ls' not found`, ו-Ubuntu תציע את `ls`. **אות גדולה**: הפקודה היא `ls`.
+2. `No such file or directory`. **שגיאת כתיב**: `/home`, לא `/hmoe`. עם <Kbd>Tab</Kbd> זה לא היה קורה.
+3. `rm: cannot remove 'photos': Is a directory`. צריך `rm -r photos`. ורגע לפני: בטוחים שאתם רוצים למחוק את כל התמונות?
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`--help`", body: "תזכורת מהירה. `[ ]` אומר רשות, `...` אומר אפשר כמה." },
+    { title: "`man`", body: "המדריך המלא. `/` מחפש, `n` הבא, `q` יוצא. `man -k` מחפש פקודה לפי נושא." },
+    { title: "`tldr`", body: "דוגמאות מוכנות ושימושיות, בלי לקרוא מדריך שלם." },
+    { title: "הודעות שגיאה", body: "פקודה: על מה: למה. קוראים אותן, ורוב הזמן הפתרון כתוב שם." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "אתם רוצים תזכורת מהירה לאפשרויות של `cp`. מה הכי מהיר?",
+      options: [
+        { text: "`cp --help`", why: "סיכום קצר ישר בטרמינל." },
+        { text: "`cp -h`", why: "ב-`cp` אין `-h` לעזרה, ובפקודות אחרות `-h` יכול לעשות משהו אחר לגמרי. `--help` בטוח." },
+        { text: "`help cp`", why: "`help` מיועדת לפקודות המובנות של המעטפת, כמו `cd`. `cp` היא תוכנה נפרדת." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "אתם צריכים פקודה שמשנה סיסמה, אבל לא יודעים איך קוראים לה. מה תנסו?",
+      options: [
+        { text: "`man password`", why: "`man` צריכה את השם המדויק של הפקודה. אין פקודה בשם `password`." },
+        { text: "`man -k password`", why: "היא מחפשת את המילה בתיאורים של כל הפקודות, ותמצא את `passwd`." },
+        { text: "`whatis password`", why: "`whatis` מתארת פקודה שכבר יודעים את שמה. היא לא מחפשת לפי נושא." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "מה אומרת ההודעה `cat: notes.txt: No such file or directory`?",
+      options: [
+        { text: "הפקודה `cat` לא מותקנת", why: "אם `cat` לא הייתה קיימת, הייתם מקבלים `command not found`." },
+        { text: "אין לכם הרשאה לקרוא את הקובץ", why: "לזה יש הודעה אחרת: `Permission denied`." },
+        { text: "אין קובץ בשם הזה במקום שבו `cat` חיפשה", why: "בדקו את השם, ובדקו איפה אתם עם `pwd`." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

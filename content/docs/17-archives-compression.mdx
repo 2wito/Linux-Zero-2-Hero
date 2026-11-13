@@ -1,0 +1,277 @@
+# דחיסה וארכיונים
+
+<Callout type="info" title="מה נלמד בפרק">
+- ההבדל בין **ארכיון** (לארוז הרבה קבצים לאחד) ל**דחיסה** (להקטין).
+- `tar`: ליצור (`c`), לפתוח (`x`) ולהציג תוכן (`t`), עם דחיסה (`z`, `J`).
+- `gzip` ו-`gunzip` לקובץ בודד.
+- `zip` ו-`unzip`, בשביל מי שמשתמש ב-Windows.
+- טבלה: איזה פורמט ואיזה דגל לבחור.
+</Callout>
+
+## מזוודה ושקית ואקום
+
+כשנוסעים לחופשה עושים שני דברים שונים:
+
+1. **אורזים** את כל הבגדים ל**מזוודה אחת**, כדי שיהיה קל לסחוב. זה **ארכיון**: הרבה קבצים ותיקיות בתוך קובץ אחד.
+2. שמים את הבגדים ב**שקית ואקום**, כדי שיתפסו פחות מקום. זו **דחיסה**: אותו מידע, בפחות בתים.
+
+בלינוקס אלה שני כלים נפרדים, שעובדים יחד: `tar` אורזת, ו-`gzip` או `xz` דוחסות. ולכן הסיומת המוכרת `.tar.gz` היא בעצם "מזוודה בשקית ואקום".
+
+## `tar`: אורזים מזוודה
+
+`tar` (tape archive, מהימים שגיבו על סרטים מגנטיים) עובדת עם אותיות שמרכיבות "משפט":
+
+| אות | משמעות |
+| --- | --- |
+| `c` | ליצור (create) |
+| `x` | לחלץ (extract) |
+| `t` | להציג תוכן (list) |
+| `f` | **קובץ** הארכיון (file). תמיד אחרונה לפני השם |
+| `v` | להראות כל קובץ בזמן העבודה (verbose) |
+| `z` | דחיסה ב-gzip |
+| `J` | דחיסה ב-xz |
+
+התיקייה שנארוז:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ du -sh project
+  164K	project
+  $ tar -cvf project.tar project
+  project/
+  project/docs/
+  project/docs/services.txt
+  project/docs/notes.txt
+  project/src/
+  project/src/data.csv
+  project/src/main.py
+  $ ls -lh project.tar
+  -rw-r--r-- 1 dana dana 150K Nov 11 21:05 project.tar
+`}</TerminalWindow>
+
+`-cvf`: צור, הצג כל קובץ, לתוך הקובץ `project.tar`. ואחרי השם, **מה** לארוז. (`du -sh` מציגה כמה מקום תיקייה תופסת. נכיר אותה בפרק 21.)
+
+שימו לב: `project.tar` כמעט באותו גודל כמו התיקייה. `tar` לבדה רק **אורזת**, היא לא דוחסת.
+
+### מה יש במזוודה? `t`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -tf project.tar
+  project/
+  project/docs/
+  project/docs/services.txt
+  project/docs/notes.txt
+  project/src/
+  project/src/data.csv
+  project/src/main.py
+`}</TerminalWindow>
+
+תמיד כדאי להציץ בארכיון לפני שפותחים אותו, ובמיוחד בארכיון שהורדתם מהאינטרנט.
+
+## מוסיפים דחיסה: `z` ו-`J`
+
+אותה פקודה, עם עוד אות אחת:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -czf project.tar.gz project
+  $ tar -cJf project.tar.xz project
+  $ ls -lh project.tar*
+  -rw-r--r-- 1 dana dana 150K Nov 11 21:05 project.tar
+  -rw-r--r-- 1 dana dana  51K Nov 11 21:06 project.tar.gz
+  -rw-r--r-- 1 dana dana  11K Nov 11 21:06 project.tar.xz
+`}</TerminalWindow>
+
+- `z` (gzip): מ-150K ל-51K. מהיר, ונתמך בכל מקום.
+- `J` (xz): עד 11K. דוחס הרבה יותר, אבל לוקח יותר זמן.
+
+כמה דוחסים תלוי בתוכן: טקסט שחוזר על עצמו נדחס מצוין, ותמונות או סרטונים (שכבר דחוסים) כמעט לא קטנים.
+
+## פותחים: `x`
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ mkdir restore
+  $ tar -xzf project.tar.gz -C restore
+  $ ls -R restore
+  restore:
+  project
+
+  restore/project:
+  docs  src
+
+  restore/project/docs:
+  notes.txt  services.txt
+
+  restore/project/src:
+  data.csv  main.py
+`}</TerminalWindow>
+
+- `-xzf`: חלץ, מ-gzip, מהקובץ `project.tar.gz`.
+- `-C restore` (גדולה!): חלץ לתוך התיקייה `restore` במקום לתיקייה הנוכחית.
+- `ls -R` (recursive) מציגה את כל התיקיות לעומק.
+
+<Callout type="warning" title="חילוץ דורס קבצים קיימים">
+אם בתיקייה כבר יש קבצים באותם שמות כמו בארכיון, `tar -x` **מחליפה אותם בשקט**. לכן: הציצו קודם עם `tar -tf`, וחלצו לתיקייה חדשה וריקה עם `-C`. ארכיון ממקור לא מוכר עלול גם לפזר מאות קבצים ישר בתיקייה הנוכחית.
+</Callout>
+
+### פרטים מלאים, וקובץ אחד בלבד
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tar -tzvf project.tar.gz
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/docs/
+  -rw-r--r-- dana/dana     12813 2026-11-11 21:05 project/docs/services.txt
+  -rw-r--r-- dana/dana     21492 2026-11-11 21:05 project/docs/notes.txt
+  drwxr-xr-x dana/dana         0 2026-11-11 21:05 project/src/
+  -rw-r--r-- dana/dana    108894 2026-11-11 21:05 project/src/data.csv
+  -rw-r--r-- dana/dana        12 2026-11-11 21:05 project/src/main.py
+  $ mkdir one
+  $ tar -xzf project.tar.gz -C one project/src/main.py
+`}</TerminalWindow>
+
+`v` עם `t` מציגה הרשאות, בעלים וגדלים, כמו `ls -l`. ואם כותבים שם של קובץ בסוף הפקודה, `tar` מחלצת רק אותו.
+
+<Callout type="tip" title="ב-tar מודרני, אפשר בלי z בחילוץ">
+בחילוץ, `tar -xf` מזהה לבד אם הקובץ דחוס ב-gzip או ב-xz. ביצירה צריך לומר לה במפורש (`z` או `J`).
+</Callout>
+
+## `gzip`: לקובץ בודד
+
+`gzip` דוחסת **קובץ אחד**, ומחליפה אותו בגרסה הדחוסה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls -lh data.csv
+  -rw-r--r-- 1 dana dana 107K Nov 11 21:06 data.csv
+  $ gzip data.csv
+  $ ls -lh data.csv*
+  -rw-r--r-- 1 dana dana 44K Nov 11 21:06 data.csv.gz
+  $ gunzip data.csv.gz
+  $ ls data.csv*
+  data.csv
+  $ gzip -k data.csv
+  $ ls data.csv*
+  data.csv  data.csv.gz
+  $ zcat data.csv.gz | head -3
+  1
+  2
+  3
+`}</TerminalWindow>
+
+- אחרי `gzip`, הקובץ המקורי **נעלם** ובמקומו יש `.gz`. `gunzip` עושה את ההפך.
+- `-k` (keep) שומרת גם את המקורי.
+- `zcat` מציגה את התוכן של קובץ דחוס בלי לפתוח אותו. ככה קוראים לוגים ישנים, שהמערכת דוחסת אוטומטית (נראה בפרק 20).
+
+## `zip` ו-`unzip`
+
+`.zip` הוא הפורמט של Windows ו-macOS. כששולחים קבצים למישהו שלא עובד בלינוקס, זו הבחירה הנכונה. כאן כלי אחד גם אורז וגם דוחס:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ zip -r project.zip project
+    adding: project/ (stored 0%)
+    adding: project/docs/ (stored 0%)
+    adding: project/docs/services.txt (deflated 58%)
+    adding: project/docs/notes.txt (deflated 95%)
+    adding: project/src/ (stored 0%)
+    adding: project/src/data.csv (deflated 59%)
+    adding: project/src/main.py (stored 0%)
+  $ unzip -l project.zip
+  Archive:  project.zip
+    Length      Date    Time    Name
+  ---------  ---------- -----   ----
+          0  2026-11-11 21:05   project/
+          0  2026-11-11 21:05   project/docs/
+      12813  2026-11-11 21:05   project/docs/services.txt
+      21492  2026-11-11 21:05   project/docs/notes.txt
+          0  2026-11-11 21:05   project/src/
+     108894  2026-11-11 21:05   project/src/data.csv
+         12  2026-11-11 21:05   project/src/main.py
+  ---------                     -------
+     143211                     7 files
+  $ mkdir unz
+  $ unzip -q project.zip -d unz
+  $ ls unz/project
+  docs  src
+`}</TerminalWindow>
+
+- `zip -r` (recursive): שם הארכיון קודם, ואחריו מה לארוז. `deflated 95%` אומר שהקובץ קטן ב-95%.
+- `unzip -l` (list) מציגה את התוכן, `-d` בוחרת תיקיית יעד ו-`-q` (quiet) משתיקה את הפלט.
+
+אם `zip` לא מותקנת, מתקינים אותה כמו בפרק 10: `sudo apt install zip unzip`.
+
+## איזה פורמט לבחור?
+
+| מצב | פקודה | למה |
+| --- | --- | --- |
+| גיבוי או העברה בין מחשבי לינוקס | `tar -czf x.tar.gz dir` | מהיר, שומר הרשאות ובעלים |
+| קובץ שחשוב שיהיה כמה שיותר קטן | `tar -cJf x.tar.xz dir` | הדחיסה החזקה ביותר |
+| לשלוח למישהו עם Windows | `zip -r x.zip dir` | נפתח בלחיצה כפולה בכל מערכת |
+| קובץ בודד, כמו לוג גדול | `gzip -k file` | פשוט ומהיר |
+| לפתוח `.tar.gz` / `.tgz` | `tar -xzf x.tar.gz` | |
+| לפתוח `.tar.xz` | `tar -xJf x.tar.xz` | |
+| לפתוח `.zip` | `unzip x.zip -d dir` | |
+
+<Callout type="tip" title="איך זוכרים את tar">
+**c**reate a **z**ipped **f**ile = `czf`. e**x**tract **z**ipped **f**ile = `xzf`. **t**able of contents = `tf`.
+</Callout>
+
+<Exercise title="גיבוי של תיקיית הבית">
+1. צרו ארכיון דחוס ב-gzip של התיקייה `~/projects` (או כל תיקייה אחרת שלכם), בשם שכולל את התאריך: `backup-2026-11-11.tar.gz`.
+2. בדקו מה בתוכו, בלי לחלץ.
+3. חלצו אותו לתיקייה חדשה בשם `~/restore-test`.
+
+<Solution>
+
+```bash
+tar -czf backup-2026-11-11.tar.gz ~/projects
+tar -tzf backup-2026-11-11.tar.gz
+mkdir ~/restore-test
+tar -xzf backup-2026-11-11.tar.gz -C ~/restore-test
+```
+
+כשנותנים ל-`tar` נתיב מלא כמו `/home/dana/projects`, היא מורידה את ה-`/` מההתחלה ומדפיסה על זה הודעה שמתחילה ב-`tar: Removing leading`. זו לא שגיאה. כך החילוץ תמיד נעשה **בתוך** תיקיית היעד, ולא דורס את המקור. בפרק 18 נהפוך את הגיבוי הזה לסקריפט, עם תאריך אוטומטי.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "ארכיון ≠ דחיסה", body: "`tar` אורזת הרבה קבצים לאחד. `gzip`/`xz` מקטינות. `.tar.gz` = שניהם." },
+    { title: "`tar -czf` / `-xzf` / `-tf`", body: "ליצור, לחלץ ולהציג. `-C` לחלץ לתיקייה אחרת." },
+    { title: "`gzip` / `gunzip` / `zcat`", body: "דחיסה של קובץ בודד, פתיחה, וקריאה בלי לפתוח." },
+    { title: "`zip` / `unzip`", body: "הפורמט שכולם מכירים, בשביל משתמשי Windows ו-Mac." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "איך פותחים את `site.tar.gz` לתוך התיקייה `out`?",
+      options: [
+        { text: "`tar -czf site.tar.gz -C out`", why: "`c` יוצרת ארכיון חדש. לחילוץ צריך `x`." },
+        { text: "`tar -xzf site.tar.gz -C out`", why: "חלץ, gzip, קובץ, ו-`-C` לתיקיית היעד." },
+        { text: "`unzip site.tar.gz -d out`", why: "`unzip` פותחת רק קבצי `.zip`." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "מה קורה לקובץ `log.txt` אחרי `gzip log.txt`?",
+      options: [
+        { text: "הוא מוחלף ב-`log.txt.gz`, והמקורי נעלם", why: "בשביל לשמור גם את המקורי, `gzip -k`." },
+        { text: "נוצר `log.txt.gz` לידו, והמקורי נשאר", why: "רק עם `-k`." },
+        { text: "הוא נארז לתוך `log.tar`", why: "`gzip` לא יוצרת ארכיון. היא רק דוחסת קובץ אחד." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "צריך לשלוח תיקייה לחבר שעובד ב-Windows. מה הכי מתאים?",
+      options: [
+        { text: "`tar -cJf`", why: "Windows לא תמיד יודעת לפתוח `.tar.xz` בלחיצה כפולה." },
+        { text: "`gzip -r`", why: "`gzip` דוחסת כל קובץ בנפרד, ולא אורזת אותם לקובץ אחד." },
+        { text: "`zip -r`", why: "`.zip` נפתח בכל מערכת הפעלה בלי תוכנות נוספות." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

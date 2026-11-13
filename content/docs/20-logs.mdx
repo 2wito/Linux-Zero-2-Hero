@@ -1,0 +1,284 @@
+# לוגים ו-journalctl
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **לוג**, ולמה הוא החבר הכי טוב שלכם כשמשהו לא עובד.
+- מה יש ב-`/var/log`, ואיך קוראים קבצי לוג.
+- `journalctl`: לסנן לפי שירות (`-u`), לעקוב בזמן אמת (`-f`), ולפי זמן (`--since`).
+- מה זה `dmesg`.
+- שיטת עבודה: איך מחפשים תקלה בלוג.
+</Callout>
+
+## יומן המשמרות
+
+בבית חולים, כל אחות כותבת ביומן המשמרות מה קרה: מי הגיע, איזו תרופה ניתנה, ומה היה חריג. כשמשהו משתבש בלילה, הצוות של הבוקר לא מנחש. הוא פותח את היומן.
+
+**לוג** (log) הוא יומן כזה. כמעט כל תוכנה בלינוקס כותבת לתוכו מה היא עושה, ובעיקר **מה השתבש ולמה**. כשמשהו לא עובד, השאלה הראשונה היא תמיד: **מה הלוג אומר?**
+
+בלינוקס יש שני מקומות עיקריים ללוגים:
+
+1. **קבצי טקסט** בתיקייה `/var/log`. השיטה הוותיקה.
+2. **ה-journal** של systemd, שקוראים עם `journalctl`. השיטה המודרנית.
+
+ב-Ubuntu שתיהן פועלות במקביל, ורוב ההודעות מגיעות לשתיהן.
+
+## `/var/log`: ארון היומנים
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls /var/log
+  README                 dmesg           kern.log.2.gz
+  alternatives.log       dmesg.0         kern.log.3.gz
+  alternatives.log.1     dmesg.1.gz      kern.log.4.gz
+  alternatives.log.2.gz  dmesg.2.gz      landscape
+  alternatives.log.3.gz  dmesg.3.gz      lastlog
+  alternatives.log.4.gz  dmesg.4.gz      private
+  apt                    dpkg.log        syslog
+  auth.log               dpkg.log.1      syslog.1
+  auth.log.1             dpkg.log.2.gz   syslog.2.gz
+  auth.log.2.gz          dpkg.log.3.gz   syslog.3.gz
+  auth.log.3.gz          dpkg.log.4.gz   syslog.4.gz
+  auth.log.4.gz          faillog         ubuntu-advantage-apt-hook.log
+  bootstrap.log          fontconfig.log  unattended-upgrades
+  btmp                   journal         wtmp
+  btmp.1                 kern.log
+  dist-upgrade           kern.log.1
+`}</TerminalWindow>
+
+הקבצים שכדאי להכיר:
+
+| קובץ | מה יש בו |
+| --- | --- |
+| `syslog` | היומן הכללי: כמעט כל מה שקורה במערכת (ב-Fedora/Arch: אין, משתמשים ב-journal) |
+| `auth.log` | התחברויות, `sudo`, ניסיונות כניסה כושלים |
+| `kern.log` | הודעות של הליבה (חומרה, דרייברים) |
+| `dpkg.log`, `apt/` | אילו חבילות הותקנו, עודכנו או הוסרו, ומתי |
+
+### `.1`, `.2.gz`: סבב לוגים
+
+ראיתם את `syslog.1` ואת `syslog.2.gz`? לוגים גדלים כל הזמן, ולכן המערכת עושה **סבב** (rotation): פעם בפרק זמן, `syslog` הופך ל-`syslog.1`, הישן יותר נדחס ל-`.2.gz`, וכן הלאה. הישנים ביותר נמחקים. כך הדיסק לא מתמלא בלוגים.
+
+קוראים לוג דחוס עם `zcat` (או `zgrep` כדי לחפש בו), כמו שלמדנו בפרק 17.
+
+### קוראים את הלוג
+
+הלוגים גדולים מאוד (`syslog` כאן הוא יותר מ-2MB), אז `cat` היא לא הבחירה הנכונה. משתמשים ב-`tail`, `less` ו-`grep`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -l /var/log/syslog /var/log/auth.log
+  -rw-r----- 1 syslog adm   33630 Nov 11 21:13 /var/log/auth.log
+  -rw-r----- 1 syslog adm 2248003 Nov 11 21:13 /var/log/syslog
+  $ tail -3 /var/log/syslog
+  2026-11-11T21:13:39.694692+02:00 ubuntu systemd[437]: Finished wslg-session.service - WSLg user service.
+  2026-11-11T21:13:39.694736+02:00 ubuntu systemd[437]: Startup finished in 122ms.
+  2026-11-11T21:13:39.910280+02:00 ubuntu crontab[486]: (dana) LIST (dana)
+`}</TerminalWindow>
+
+כל שורה בנויה אותו דבר: **מתי** (תאריך ושעה מדויקים), **איפה** (שם המחשב), **מי** (התוכנה, וה-PID שלה בסוגריים) ו**מה** (ההודעה).
+
+שימו לב להרשאות: `rw-r-----`, הבעלים `syslog` והקבוצה `adm`. רק חברי הקבוצה `adm` יכולים לקרוא את הלוגים. המשתמש הראשון ב-Ubuntu חבר בה (ראינו את זה ב-`id`, בפרק 9), ומשתמשים אחרים יצטרכו `sudo`.
+
+### כותבים ללוג בעצמכם: `logger`
+
+`logger` כותבת הודעה ליומן המערכת. היא שימושית בסקריפטים, כדי שגם הם ישאירו עקבות:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ logger 'Hello from dana: testing logs'
+  $ tail -1 /var/log/syslog
+  2026-11-11T21:13:40.080852+02:00 ubuntu dana: Hello from dana: testing logs
+`}</TerminalWindow>
+
+## `journalctl`: היומן של systemd
+
+systemd אוספת את ההודעות של **כל** השירותים למקום אחד, ה-**journal**. היתרון: אפשר לסנן אותו לפי שירות, זמן, חומרה ועוד, בלי `grep`.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -n 3 --no-pager
+  Nov 11 21:13:39 ubuntu systemd[437]: Startup finished in 122ms.
+  Nov 11 21:13:39 ubuntu crontab[486]: (dana) LIST (dana)
+  Nov 11 21:13:40 ubuntu dana[494]: Hello from dana: testing logs
+`}</TerminalWindow>
+
+`-n 3`: שלוש השורות האחרונות. בלי אפשרויות, `journalctl` פותחת את **כל** היומן, מהישן לחדש, בתוך `less` (יוצאים עם <Kbd>q</Kbd>, ו-<Kbd keys="Shift+G" /> קופץ לסוף).
+
+### הסינונים החשובים
+
+| אפשרות | מה היא מציגה |
+| --- | --- |
+| `-u cron` | רק את השירות `cron` (unit) |
+| `-f` | עוקבת: מציגה שורות חדשות ברגע שהן נכתבות (follow) |
+| `-n 50` | 50 השורות האחרונות |
+| `--since "1 hour ago"` | מהשעה האחרונה. גם `today`, `yesterday` או `"2026-11-11 08:00"` |
+| `-p err` | רק שגיאות ומעלה (priority) |
+| `-b` | רק מההדלקה הנוכחית (boot). `-b -1` = מההדלקה הקודמת |
+| `-g "text"` | רק שורות שמכילות טקסט (grep) |
+| `--user` | הלוגים של שירותי המשתמש (כמו בפרק 19) |
+
+ואפשר לשלב:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -u cron --since '1 hour ago' --no-pager | head -4
+  Nov 11 20:17:03 ubuntu systemd[1]: Started cron.service - Regular background program processing daemon.
+  Nov 11 20:17:03 ubuntu (cron)[227]: cron.service: Referenced but unset environment variable evaluates to an empty string: EXTRA_OPTS
+  Nov 11 20:17:03 ubuntu cron[227]: (CRON) INFO (pidfile fd = 3)
+  Nov 11 20:17:03 ubuntu cron[227]: (CRON) INFO (Running @reboot jobs)
+`}</TerminalWindow>
+
+### שגיאות בלבד
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -p err -b --no-pager | head -3
+  Nov 11 21:13:36 ubuntu kernel: PCI: Fatal: No config space access function found
+  Nov 11 21:13:36 ubuntu kernel: /dev/sdd: Can't open blockdev
+  Nov 11 21:13:37 ubuntu kernel: misc dxg: dxgk: dxgkio_is_feature_enabled: Ioctl failed: -22
+`}</TerminalWindow>
+
+<Callout type="tip" title="לא כל שגיאה בלוג היא בעיה">
+המילה `Fatal` נשמעת מבהילה, אבל המערכת הזו עובדת מצוין. אלה הודעות של הליבה על חומרה שלא קיימת במכונה וירטואלית של WSL. בכל מערכת יש שגיאות "רגילות" כאלה. מה שמעניין הוא שגיאה **שקשורה לתקלה שלכם**, ו**בזמן** שהיא קרתה.
+</Callout>
+
+### מעקב בזמן אמת: `-f`
+
+`-f` (follow) מציגה את השורות האחרונות, ואז **ממשיכה לחכות** ומציגה כל שורה חדשה ברגע שהיא נכתבת. כאן, בזמן שהיא רצה, שני סקריפטים כתבו ללוג עם `logger`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl -f -n 2
+  Nov 11 21:13:53 ubuntu systemd[437]: Reloading...
+  Nov 11 21:13:53 ubuntu systemd[437]: Reloading finished in 49 ms.
+  ...
+  Nov 11 21:14:10 ubuntu dana[604]: backup finished
+  Nov 11 21:14:12 ubuntu dana[581]: disk almost full
+  ^C
+`}</TerminalWindow>
+
+יוצאים עם <Kbd keys="Ctrl+C" />. זה הכלי הכי שימושי לאבחון: פותחים `journalctl -f` בחלון אחד, ומנסים לשחזר את התקלה בחלון אחר. (`tail -f` עושה את אותו דבר עם קובץ לוג רגיל.)
+
+## `dmesg`: מה הליבה אומרת
+
+`dmesg` מציגה את ההודעות של **הליבה**: זיהוי חומרה, דיסקים, USB ודרייברים. היא מתחילה מרגע ההדלקה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ dmesg | head -3
+  [    0.000000] Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+  [    0.000000] Command line: initrd=\\initrd.img WSL_ROOT_INIT=1 panic=-1 nr_cpus=20 hv_utils.timesync_implicit=1 console=hvc0 debug pty.legacy_count=0 WSL_ENABLE_CRASH_DUMP=1
+  [    0.000000] KERNEL supported cpus:
+`}</TerminalWindow>
+
+המספר בסוגריים הוא שניות מההדלקה. `dmesg` שימושית בעיקר כשחומרה לא עובדת: חיברתם דיסק USB ולא קורה כלום? `sudo dmesg -w` (מעקב), חברו אותו שוב, ותראו מה הליבה חושבת עליו. (בחלק מההפצות `dmesg` דורשת `sudo` גם בלי `-w`.)
+
+## שיטת עבודה: מחפשים תקלה
+
+הנה תרחיש אמיתי. כתבנו שירות (כמו בפרק 19), הפעלנו אותו, והוא לא עובד. במקום לנחש, עוקבים אחרי ארבעה צעדים:
+
+**1. מה המצב?**
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user status myapp --no-pager
+  × myapp.service - My little app
+       Loaded: loaded (/home/dana/.config/systemd/user/myapp.service; static)
+       Active: failed (Result: exit-code) since Wed 2026-11-11 21:13:52 IST; 1s ago
+     Duration: 20ms
+      Process: 538 ExecStart=/usr/bin/python3 /home/dana/myapp/app.py (code=exited, status=2)
+     Main PID: 538 (code=exited, status=2)
+          CPU: 21ms
+
+  Nov 11 21:13:52 ubuntu systemd[437]: Started myapp.service - My little app.
+  Nov 11 21:13:52 ubuntu python3[538]: /usr/bin/python3: can't open file '/home/dana/myapp/app.py': [Errno 2] No such file or directory
+  Nov 11 21:13:52 ubuntu systemd[437]: myapp.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+  Nov 11 21:13:52 ubuntu systemd[437]: myapp.service: Failed with result 'exit-code'.
+`}</TerminalWindow>
+
+`×` אדום ו-`failed`. השירות עלה ונפל אחרי 20 מילישניות.
+
+**2. מה הלוג אומר?** כאן `status` כבר הראתה את השורות האחרונות. אם צריך יותר, `journalctl --user -u myapp` (או `journalctl -u myapp` לשירות מערכת) תציג את כל ההיסטוריה.
+
+**3. קוראים את ההודעה הראשונה שנראית כמו שגיאה,** לא את האחרונה. השורות `Main process exited` ו-`Failed with result` הן רק **התוצאה**. ה**סיבה** נמצאת בשורה שלפניהן: `can't open file '/home/dana/myapp/app.py': No such file or directory`. הקובץ שהשירות מנסה להריץ לא קיים (אולי שגיאת כתיב בנתיב, אולי הוא בתיקייה אחרת).
+
+**4. מתקנים, ובודקים שוב.** מתקנים את הנתיב בקובץ ה-service, `daemon-reload`, `restart`, ושוב `status`.
+
+<Callout type="tip" title="שתי שאלות לכל תקלה">
+**מה השתנה?** (עדכון? קובץ הגדרות שנערך? חבילה שהותקנה?) ו**מה הלוג אומר?** רוב התקלות נפתרות כשעונים על שתיהן. ואם הודעת השגיאה לא ברורה, העתיקו אותה **כמו שהיא** לחיפוש באינטרנט, בלי החלקים הייחודיים לכם (כמו שמות קבצים ו-PID).
+</Callout>
+
+## לוגים תופסים מקום
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ journalctl --disk-usage
+  Archived and active journals take up 769.5M in the file system.
+`}</TerminalWindow>
+
+ה-journal מנקה את עצמו כשהוא מגיע לגבול שהוגדר לו, אבל אם הדיסק מתמלא, אפשר לקצץ אותו ידנית:
+
+<Callout type="warning" title="vacuum מוחק היסטוריה">
+`sudo journalctl --vacuum-time=7d` מוחקת לצמיתות את כל הלוגים שישנים משבוע. אחרי זה, אם תצטרכו לחקור תקלה מלפני שבועיים, המידע כבר לא יהיה. **ולעולם אל תמחקו קבצים ב-`/var/log` עם `rm`**: תוכנות שכותבות אליהם עלולות להפסיק לרשום, ותאבדו את הראיות בדיוק כשתצטרכו אותן.
+</Callout>
+
+<Exercise title="בלש לוגים">
+1. הציגו את 10 השורות האחרונות של היומן.
+2. הציגו את ההודעות של השירות `cron` מהיום.
+3. כתבו ללוג הודעה עם `logger`, ומצאו אותה עם `journalctl` ו-`-g`.
+4. פתחו `journalctl -f` בטרמינל אחד, ומטרמינל שני הריצו `logger "hello"`. מה קרה?
+
+<Solution>
+
+```bash
+journalctl -n 10
+journalctl -u cron --since today
+logger "my test message"
+journalctl --since today -g "my test message"
+journalctl -f
+```
+
+ובטרמינל השני:
+
+```bash
+logger "hello"
+```
+
+בסעיף 4, השורה מופיעה ב-`journalctl -f` מיד, עם השם שלכם וה-PID של `logger`. <Kbd keys="Ctrl+C" /> יוצא.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`/var/log`", body: "`syslog`, `auth.log`, `kern.log`. נקראים עם `tail`, `less` ו-`grep`. ישנים נדחסים ל-`.gz`." },
+    { title: "`journalctl -u X`", body: "הלוג של שירות אחד. עם `--since`, `-p err`, `-b` ו-`-g` לסינון." },
+    { title: "`journalctl -f`", body: "מעקב בזמן אמת. פותחים, ומשחזרים את התקלה בחלון אחר." },
+    { title: "שיטה", body: "`status` → לוג → ההודעה **הראשונה** שנראית כמו שגיאה → תיקון → בדיקה." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "השירות `nginx` לא עולה. מה הפקודה הכי מתאימה לראות למה?",
+      options: [
+        { text: "`cat /var/log/syslog`", why: "יעבוד, אבל תצטרכו למצוא את השורות הרלוונטיות בתוך אלפי שורות." },
+        { text: "`journalctl -u nginx`", why: "רק השורות של השירות הזה, בסדר כרונולוגי." },
+        { text: "`dmesg`", why: "`dmesg` מציגה הודעות של הליבה, לא של שירותים." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "מה עושה `journalctl -f`?",
+      options: [
+        { text: "מציגה שורות חדשות ברגע שהן נכתבות, עד Ctrl+C", why: "f = follow." },
+        { text: "מוחקת את הלוג (force)", why: "`-f` לא מוחקת כלום." },
+        { text: "מציגה רק שגיאות קריטיות (fatal)", why: "לסינון לפי חומרה משתמשים ב-`-p`." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "הדיסק מלא, ו-`/var/log/syslog` ענק. מה **לא** כדאי לעשות?",
+      options: [
+        { text: "לבדוק עם `journalctl --disk-usage` כמה מקום תופס ה-journal", why: "זה צעד ראשון טוב." },
+        { text: "לבדוק למה תוכנה כותבת כל כך הרבה ללוג", why: "לרוב זו הבעיה האמיתית." },
+        { text: "`sudo rm /var/log/syslog`", why: "תוכנות שכותבות אליו עלולות להפסיק לרשום, ותאבדו מידע חשוב." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

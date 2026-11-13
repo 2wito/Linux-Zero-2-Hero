@@ -1,0 +1,288 @@
+# צינורות והפניות
+
+<Callout type="info" title="מה נלמד בפרק">
+- לאן הולך הפלט של פקודה: **stdout**, **stderr** ו-**stdin**.
+- לשמור פלט בקובץ עם `>` ו-`>>`, ולקרוא קלט מקובץ עם `<`.
+- להפריד שגיאות עם `2>` ולאחד אותן עם `2>&1`.
+- לחבר פקודות עם `|`, ולפצל פלט עם `tee`.
+- את הרעיון הגדול של לינוקס: כלים קטנים שמתחברים.
+</Callout>
+
+## צנרת בבית
+
+תחשבו על צנרת מים. לכל ברז יש **כניסה** ושתי **יציאות**: יציאה רגילה, וצינור ניקוז לתקלות.
+
+כך בדיוק עובדת כל פקודה בלינוקס. יש לה שלושה "צינורות" (streams):
+
+| צינור | מספר | שם | בדרך כלל מחובר ל... |
+| --- | --- | --- | --- |
+| **stdin** | 0 | קלט רגיל | המקלדת |
+| **stdout** | 1 | פלט רגיל | המסך |
+| **stderr** | 2 | פלט שגיאות | גם המסך |
+
+בפרק הזה נלמד **לחבר את הצינורות למקומות אחרים**: לקובץ, או לפקודה אחרת.
+
+## `>`: לשמור פלט בקובץ
+
+`>` מפנה את ה-stdout לקובץ במקום למסך:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "חלב" > shopping.txt
+  $ cat shopping.txt
+  חלב
+  $ echo "לחם" > shopping.txt
+  $ cat shopping.txt
+  לחם
+`}</TerminalWindow>
+
+שימו לב: ה"חלב" נעלם. `>` **דורס** את הקובץ: הוא מרוקן אותו לפני שהוא כותב.
+
+## `>>`: להוסיף לסוף
+
+`>>` מוסיף לסוף הקובץ בלי למחוק את מה שיש בו:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "ביצים" >> shopping.txt
+  $ echo "גבינה" >> shopping.txt
+  $ cat shopping.txt
+  לחם
+  ביצים
+  גבינה
+`}</TerminalWindow>
+
+<Callout type="warning" title="> אחד מוחק, >> שניים מוסיפים">
+טעות של תו אחד, `>` במקום `>>`, מוחקת את כל התוכן הקיים בלי אזהרה ובלי סל מחזור. לפני Enter על פקודה עם `>`, בדקו שזה באמת הקובץ שאתם רוצים לדרוס.
+</Callout>
+
+## `<`: לקרוא קלט מקובץ
+
+`<` הוא הכיוון ההפוך: הוא מזין קובץ ל-stdin של הפקודה. `wc -l` סופרת שורות:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ wc -l < shopping.txt
+  3
+  $ wc -l shopping.txt
+  3 shopping.txt
+`}</TerminalWindow>
+
+ההבדל קטן: כשנותנים שם קובץ, `wc` יודעת את שמו ומדפיסה אותו. עם `<` היא רק מקבלת את התוכן.
+
+## שגיאות: `2>`
+
+נבקש מ-`ls` קובץ שקיים וקובץ שלא קיים, ונשלח את הפלט לקובץ:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  shopping.txt
+  $ ls shopping.txt nosuch.txt > out.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  $ cat out.txt
+  shopping.txt
+`}</TerminalWindow>
+
+השגיאה עדיין הופיעה על המסך! כי `>` מפנה רק את **stdout** (צינור 1). השגיאה יצאה ב-**stderr** (צינור 2). כדי להפנות אותה, כותבים את המספר שלה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt 2> errors.txt
+  shopping.txt
+  $ cat errors.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+`}</TerminalWindow>
+
+### הכול לאותו מקום: `2>&1`
+
+רוצים פלט ושגיאות באותו קובץ? `2>&1` אומר "שלח את צינור 2 לאותו מקום שאליו הולך צינור 1":
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls shopping.txt nosuch.txt > all.txt 2>&1
+  $ cat all.txt
+  ls: cannot access 'nosuch.txt': No such file or directory
+  shopping.txt
+`}</TerminalWindow>
+
+<Callout type="tip" title="הסדר חשוב">
+קודם `> all.txt`, אחר כך `2>&1`. אם תהפכו את הסדר, stderr יישלח לאן ש-stdout הולך **באותו רגע**, כלומר למסך. ב-Bash יש גם קיצור: `&> all.txt` שולח את שניהם.
+</Callout>
+
+### החור השחור: `/dev/null`
+
+`/dev/null` הוא "קובץ" מיוחד שבולע כל מה ששולחים אליו. משתמשים בו כשרוצים להשתיק פלט:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls nosuch.txt 2> /dev/null
+`}</TerminalWindow>
+
+השגיאה נבלעה, ולא הופיע כלום.
+
+## `|`: הצינור
+
+עד עכשיו חיברנו פקודה לקובץ. **הצינור** (pipe), התו `|`, מחבר פקודה **לפקודה**: ה-stdout של הראשונה נכנס ל-stdin של השנייה.
+
+תחשבו על פס ייצור: כל תחנה עושה דבר אחד, ומעבירה את התוצאה לתחנה הבאה.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ls /etc | wc -l
+  184
+  $ ls /etc | head -4
+  ImageMagick-6
+  PackageKit
+  X11
+  adduser.conf
+  $ ls /usr/bin | grep "^gz"
+  gzexe
+  gzip
+`}</TerminalWindow>
+
+- `ls /etc | wc -l`: כמה קבצים יש ב-`/etc`? `ls` מוציאה רשימה, `wc -l` סופרת שורות.
+- `ls /etc | head -4`: רק 4 השורות הראשונות.
+- `ls /usr/bin | grep "^gz"`: מבין אלפי הפקודות, רק אלה שמתחילות ב-`gz`. (`grep` מסננת שורות, ונכיר אותה לעומק בפרק הבא.)
+
+אפשר לשרשר כמה צינורות שרוצים:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat shopping.txt | sort
+  ביצים
+  גבינה
+  לחם
+`}</TerminalWindow>
+
+### הפילוסופיה של Unix
+
+זה הרעיון הגדול שמאחורי לינוקס: **כל כלי עושה דבר אחד, טוב, ומדבר בטקסט**. אין פקודה אחת שיודעת "לספור את הקבצים ב-etc שמתחילים ב-a". יש `ls`, `grep` ו-`wc`, ומחברים אותם. כמו לבנים של לגו: מעט חלקים פשוטים, אינסוף צירופים.
+
+## `tee`: גם למסך וגם לקובץ
+
+`tee` נקראת על שם מחבר T בצנרת: היא מפצלת את הזרם. מה שנכנס אליה יוצא **גם** למסך (או לפקודה הבאה) **וגם** לקובץ:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "חלב" | tee -a shopping.txt
+  חלב
+  $ cat shopping.txt
+  לחם
+  ביצים
+  גבינה
+  חלב
+  $ sort shopping.txt | uniq | tee list.txt | wc -l
+  4
+  $ cat list.txt
+  ביצים
+  גבינה
+  חלב
+  לחם
+`}</TerminalWindow>
+
+- `-a` (append) מוסיפה לסוף הקובץ, כמו `>>`. בלי `-a`, `tee` דורסת כמו `>`.
+- בשורה השלישית, `tee` שמרה את הרשימה הממוינת ב-`list.txt`, ובמקביל העבירה אותה הלאה ל-`wc`.
+
+<Callout type="tip" title="tee ו-sudo">
+`sudo echo "x" > /etc/file` לא עובד, כי ההפניה `>` נעשית על ידי המעטפת שלכם, בלי הרשאות root. הדרך המקובלת: `echo "x" | sudo tee -a /etc/file`. נראה את זה שוב בפרקים הבאים.
+</Callout>
+
+## המלכודת: לקרוא ולכתוב לאותו קובץ
+
+נניח שרוצים למיין את הקובץ "במקום". הניסיון הטבעי:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sort shopping.txt > shopping.txt
+  $ cat shopping.txt
+  $ wc -c shopping.txt
+  0 shopping.txt
+`}</TerminalWindow>
+
+הקובץ **ריק**! המעטפת מכינה את ההפניה `>` (ומרוקנת את הקובץ) **לפני** ש-`sort` מתחילה לקרוא. כש-`sort` פותחת אותו, כבר אין בו כלום.
+
+<Callout type="warning" title="לעולם לא > לאותו קובץ שקוראים ממנו">
+כותבים לקובץ חדש ואז מחליפים: `sort shopping.txt > sorted.txt && mv sorted.txt shopping.txt`. (ל-`sort` יש גם אפשרות מובנית: `sort -o shopping.txt shopping.txt`.)
+</Callout>
+
+## טבלת סיכום
+
+| סימן | מה הוא עושה |
+| --- | --- |
+| `>` | stdout לקובץ (דורס) |
+| `>>` | stdout לסוף קובץ |
+| `<` | קובץ ל-stdin |
+| `2>` | stderr לקובץ |
+| `2>&1` | stderr לאותו מקום כמו stdout |
+| `&>` | stdout ו-stderr יחד לקובץ |
+| `\|` | stdout של פקודה ל-stdin של הבאה |
+| `tee` | גם למסך וגם לקובץ |
+
+<Exercise title="פס ייצור">
+1. שמרו בקובץ `etc-list.txt` את רשימת הקבצים ב-`/etc`.
+2. הוסיפו לסוף אותו קובץ את רשימת הקבצים ב-`/var`.
+3. ספרו כמה שורות יש בקובץ, בלי שהשם שלו יודפס.
+4. הריצו `ls /etc /nosuch` כך שהשגיאה תיבלע והפלט יופיע על המסך.
+
+<Solution>
+
+```bash
+ls /etc > etc-list.txt
+ls /var >> etc-list.txt
+wc -l < etc-list.txt
+ls /etc /nosuch 2> /dev/null
+```
+
+בסעיף 2, `>>` ולא `>`, אחרת רשימת `/etc` הייתה נמחקת. בסעיף 3, `<` מעבירה רק את התוכן, ולכן `wc` לא יודעת את שם הקובץ.
+</Solution>
+</Exercise>
+
+<Exercise title="כמה פקודות zip יש לכם?">
+בעזרת `ls`, `grep` ו-`wc` וצינורות, ספרו כמה קבצים ב-`/usr/bin` מכילים את המילה `zip` בשם.
+
+<Solution>
+
+```bash
+ls /usr/bin | grep zip | wc -l
+```
+
+שלוש תחנות: `ls` מוציאה את כל השמות, `grep zip` משאירה רק את אלה שמכילים zip, ו-`wc -l` סופרת. המספר תלוי במה שמותקן אצלכם.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "stdin / stdout / stderr", body: "0, 1 ו-2: קלט, פלט ושגיאות. כל פקודה מקבלת את שלושתם." },
+    { title: "`>` / `>>` / `<`", body: "לקובץ (דורס), לסוף קובץ, ומקובץ. `>` מוחק בלי לשאול!" },
+    { title: "`2>` / `2>&1`", body: "להפנות שגיאות, או לאחד אותן עם הפלט. `/dev/null` בולע הכול." },
+    { title: "`|` ו-`tee`", body: "לחבר פקודות לפס ייצור, ולפצל את הזרם לקובץ באמצע." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "מה יהיה בקובץ אחרי `echo a > f.txt` ואז `echo b > f.txt`?",
+      options: [
+        { text: "a ו-b, בשתי שורות", why: "בשביל זה צריך `>>`." },
+        { text: "רק b", why: "`>` מרוקן את הקובץ לפני כל כתיבה." },
+        { text: "רק a", why: "הפקודה השנייה דרסה את הראשונה." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "הרצתם `cmd > out.txt` ועדיין רואים הודעת שגיאה על המסך. למה?",
+      options: [
+        { text: "השגיאה יוצאת ב-stderr, ו-`>` מפנה רק את stdout", why: "בשביל שגיאות צריך `2>`, או `2>&1`." },
+        { text: "הקובץ מלא", why: "קבצים בלינוקס לא \"מתמלאים\" אחרי כמה שורות." },
+        { text: "`>` לא עובד עם פקודות שנכשלות", why: "הוא עובד. רק שהשגיאה הולכת בצינור אחר." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "מה עושה `ls | wc -l`?",
+      options: [
+        { text: "שומרת את הרשימה בקובץ בשם wc", why: "בשביל קובץ צריך `>`. `|` מחבר לפקודה." },
+        { text: "מריצה את שתי הפקודות בנפרד", why: "הן מחוברות: הפלט של `ls` הוא הקלט של `wc`." },
+        { text: "סופרת כמה קבצים יש בתיקייה", why: "`ls` מוציאה שם בכל שורה, ו-`wc -l` סופרת שורות." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

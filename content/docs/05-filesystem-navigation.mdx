@@ -1,0 +1,269 @@
+# ניווט במערכת הקבצים
+
+<Callout type="info" title="מה נלמד בפרק">
+- איך מאורגנים הקבצים בלינוקס: עץ אחד שמתחיל ב-`/`.
+- שלוש הפקודות של הניווט: `pwd`, `ls` ו-`cd`.
+- מה ההבדל בין **נתיב מלא** ל**נתיב יחסי**.
+- הקיצורים `~`, `.`, `..` ו-`-`.
+- מה יש בתיקיות החשובות, ואיך רואים **קבצים מוסתרים**.
+</Callout>
+
+## בניין אחד גדול
+
+ב-Windows יש כוננים נפרדים: `C:`, `D:` וכו'. בלינוקס אין דבר כזה. **הכול** נמצא בעץ אחד.
+
+תחשבו על בניין משרדים ענק:
+
+- **הלובי** הוא תיקיית השורש, שנכתבת `/`. כל דרך בבניין מתחילה ממנו.
+- מהלובי יוצאות **קומות**: `home`, `etc`, `var` ועוד.
+- בכל קומה יש **חדרים**, ובכל חדר אפשר שיהיו עוד חדרים.
+- לכל אחד מכם יש **דירה פרטית** בקומת `home`. זו **תיקיית הבית**, למשל `/home/dana`.
+
+<Callout type="tip" title="directory או folder?">
+בלינוקס נהוג להגיד **directory** (תיקייה), ב-Windows אומרים **folder**. זה אותו דבר בדיוק.
+</Callout>
+
+## איפה אני? `pwd`
+
+`pwd` (print working directory, "הדפס את התיקייה הנוכחית") עונה על השאלה "באיזה חדר אני עומד עכשיו?":
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana
+`}</TerminalWindow>
+
+הנתיב `/home/dana` אומר: מהלובי (`/`), לקומת `home`, לדירה של `dana`. ה-`/` משמש גם כ**מפריד** בין תיקיות.
+
+## מה יש כאן? `ls`
+
+`ls` (list) מציגה את מה שיש בתיקייה הנוכחית:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls
+  Desktop  Documents  Downloads  notes.txt  projects
+`}</TerminalWindow>
+
+`ls` היא אחת הפקודות הכי שימושיות, ויש לה אפשרויות רבות. שלוש החשובות:
+
+| אפשרות | מה היא עושה |
+| --- | --- |
+| `-l` | פורמט **מפורט** (long): הרשאות, בעלים, גודל ותאריך |
+| `-a` | מציגה **הכול** (all), כולל קבצים מוסתרים |
+| `-h` | גדלים **קריאים** (human): `4.0K` במקום `4096`. עובדת יחד עם `-l` |
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -lh
+  total 20K
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Desktop
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Documents
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 09:15 Downloads
+  -rw-r--r-- 1 dana dana  120 Nov 11 10:02 notes.txt
+  drwxr-xr-x 2 dana dana 4.0K Nov 11 10:30 projects
+`}</TerminalWindow>
+
+איך קוראים שורה כזו? נפרק את השורה של `notes.txt`:
+
+- `-rw-r--r--`: **התו הראשון** אומר מה זה. `-` זה קובץ רגיל ו-`d` זה תיקייה (directory). שאר התווים הם הרשאות, ונלמד עליהן בפרק 9.
+- `dana dana`: הקובץ שייך למשתמש `dana` ולקבוצה `dana`.
+- `120`: הגודל, 120 בתים.
+- `Nov 11 10:02`: מתי הקובץ שונה לאחרונה.
+- `notes.txt`: השם.
+
+### קבצים מוסתרים
+
+קובץ שהשם שלו **מתחיל בנקודה** הוא קובץ מוסתר. `ls` לא מציגה אותו, אלא אם מוסיפים `-a`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ ls -a
+  .   .bash_history  .bashrc  .profile  Documents  notes.txt
+  ..  .bash_logout   .cache   Desktop   Downloads  projects
+`}</TerminalWindow>
+
+הקבצים המוסתרים הם בדרך כלל **קבצי הגדרות**. למשל `.bashrc` שומר את ההגדרות של הטרמינל שלכם (נערוך אותו בפרק 15). הם מוסתרים כדי שלא יפריעו ביום-יום.
+
+ומה זה `.` ו-`..` בתחילת הרשימה? מיד נגיע לזה.
+
+## זזים בין תיקיות: `cd`
+
+`cd` (change directory) היא הדרך לעבור לתיקייה אחרת, כמו ללכת לחדר אחר בבניין:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd projects
+  $ pwd
+  /home/dana/projects
+`}</TerminalWindow>
+
+`cd` לא מדפיסה כלום כשהיא מצליחה. ה-prompt כן משתנה ומראה את המיקום החדש. אם התיקייה לא קיימת, תקבלו הודעה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd Projects
+  bash: cd: Projects: No such file or directory
+`}</TerminalWindow>
+
+זוכרים? אותיות גדולות וקטנות חשובות. `Projects` ו-`projects` הן שתי תיקיות שונות.
+
+## נתיב מלא מול נתיב יחסי
+
+יש שתי דרכים להגיד לאן ללכת:
+
+**נתיב מלא** (absolute) מתחיל ב-`/`. הוא כמו כתובת מלאה עם עיר ורחוב: עובד מכל מקום. למשל `/home/dana/projects`.
+
+**נתיב יחסי** (relative) **לא** מתחיל ב-`/`. הוא כמו "שתי דלתות שמאלה": תלוי איפה אתם עומדים עכשיו. למשל `projects` עובד רק אם אתם כבר ב-`/home/dana`.
+
+<TerminalWindow title="~/projects" user="dana@ubuntu">{`
+  $ cd /etc
+  $ pwd
+  /etc
+  $ cd /home/dana/projects
+  $ pwd
+  /home/dana/projects
+`}</TerminalWindow>
+
+## ארבעה קיצורים שכדאי להכיר
+
+| קיצור | משמעות | דוגמה |
+| --- | --- | --- |
+| `~` | תיקיית הבית שלכם | `cd ~` (או סתם `cd`) מחזיר הביתה |
+| `.` | התיקייה הנוכחית | `ls .` זהה ל-`ls` |
+| `..` | תיקייה אחת **למעלה** (ההורה) | `cd ..` עולה קומה |
+| `-` | התיקייה **הקודמת** שהייתם בה | `cd -` חוזר אחורה, כמו כפתור "אחורה" בדפדפן |
+
+<TerminalWindow title="~/projects" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana/projects
+  $ cd ..
+  $ pwd
+  /home/dana
+  $ cd -
+  /home/dana/projects
+`}</TerminalWindow>
+
+שימו לב: `cd -` כן מדפיסה את התיקייה שחזרתם אליה, כדי שתדעו איפה נחתתם.
+
+<Callout type="tip" title="Tab עובד גם על נתיבים">
+הקלידו `cd /ho` ולחצו <Kbd>Tab</Kbd>: הטרמינל ישלים ל-`/home/`. זה חוסך הקלדה ומונע טעויות כתיב. אם יש כמה אפשרויות, לחיצה כפולה תציג את כולן.
+</Callout>
+
+## מפת הבניין: התיקיות החשובות
+
+ככה נראה הלובי ב-Ubuntu:
+
+<TerminalWindow title="/" user="dana@ubuntu">{`
+  $ ls /
+  bin                etc                lib64       opt   sbin                sys
+  bin.usr-is-merged  home               lost+found  proc  sbin.usr-is-merged  tmp
+  boot               lib                media       root  snap                usr
+  dev                lib.usr-is-merged  mnt         run   srv                 var
+`}</TerminalWindow>
+
+לא צריך להכיר את כולן. אלה החשובות:
+
+| תיקייה | מה יש בה | כמו בבניין |
+| --- | --- | --- |
+| `/home` | תיקיות הבית של המשתמשים | קומת הדירות |
+| `/root` | תיקיית הבית של משתמש העל (root) | הדירה של מנהל הבניין |
+| `/etc` | קבצי הגדרות של המערכת | משרד ההנהלה עם כל התקנונים |
+| `/var` | נתונים שמשתנים כל הזמן, כמו לוגים | הארכיון והיומנים |
+| `/tmp` | קבצים זמניים, שנמחקים מדי פעם | חדר ישיבות שמתפנה בסוף היום |
+| `/usr` | תוכנות וספריות מותקנות | המחסן עם הציוד |
+| `/bin` | פקודות בסיסיות כמו `ls` | ארגז הכלים |
+| `/mnt`, `/media` | דיסקים וזיכרונות USB מחוברים | חניון האורחים |
+
+<Callout type="warning" title="מסתכלים, לא נוגעים">
+מותר ורצוי לטייל ב-`/etc` וב-`/var` עם `ls` ו-`cd`. אבל לא משנים שם כלום עד שיודעים בדיוק מה עושים. רוב הקבצים שם מוגנים ממילא, ותקבלו `Permission denied` אם תנסו.
+</Callout>
+
+## תרגול: מטיילים בבניין
+
+עכשיו תורכם לטייל, בסימולטור. נסו גם לטעות בכוונה: `cd` לתיקייה שלא קיימת, או `cd /root` (הדירה הנעולה של המנהל), ותראו מה לינוקס עונה.
+
+<TerminalSimulator mission="navigate" />
+
+<Exercise title="סיור בבניין">
+1. בדקו איפה אתם נמצאים.
+2. עברו לתיקייה `/etc`, והציגו את התוכן שלה.
+3. עלו תיקייה אחת למעלה. איפה אתם עכשיו?
+4. חזרו לתיקיית הבית במהירות האפשרית.
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ pwd
+  /home/dana
+  $ cd /etc
+  $ ls
+  ...
+  $ cd ..
+  $ pwd
+  /
+  $ cd
+  $ pwd
+  /home/dana
+`}</TerminalWindow>
+
+- `ls` ב-`/etc` מציגה רשימה ארוכה של קבצי הגדרות. לא צריך להבין אותם עכשיו.
+- `cd ..` מ-`/etc` מובילה ל-`/`, הלובי, כי `/etc` נמצאת ישר מתחתיו.
+- `cd` בלי כלום (או `cd ~`) מחזירה הביתה מכל מקום.
+</Solution>
+</Exercise>
+
+<Exercise title="חפשו את המוסתרים">
+אילו קבצים מוסתרים יש בתיקיית הבית שלכם? ובאיזו פקודה רואים גם את הגודל שלהם בפורמט קריא?
+
+<Solution>
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cd
+  $ ls -a
+  .   .bash_history  .bashrc  .profile  Documents  notes.txt
+  ..  .bash_logout   .cache   Desktop   Downloads  projects
+  $ ls -lah
+`}</TerminalWindow>
+
+הקבצים שמתחילים בנקודה הם המוסתרים. `ls -lah` מחברת שלוש אפשרויות: מפורט (`l`), הכול (`a`) וגדלים קריאים (`h`).
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`pwd`", body: "מראה באיזו תיקייה אתם נמצאים עכשיו." },
+    { title: "`ls -lah`", body: "מציגה את התוכן: מפורט, כולל מוסתרים, עם גדלים קריאים." },
+    { title: "`cd`", body: "עוברת תיקייה. `cd ..` עולה, `cd -` חוזרת, `cd` לבד הביתה." },
+    { title: "נתיב מלא מול יחסי", body: "מלא מתחיל ב-`/` ועובד מכל מקום. יחסי מתחיל מהמקום הנוכחי." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "אתם ב-`/home/dana/projects` ומריצים `cd ..`. איפה תהיו?",
+      options: [
+        { text: "`/home/dana`", why: "`..` היא התיקייה שמעל, ההורה." },
+        { text: "`/`", why: "`..` עולה רק תיקייה אחת, לא עד השורש." },
+        { text: "`/home/dana/projects/..`", why: "זה הנתיב שכתבתם, אבל המערכת מתרגמת אותו ל-`/home/dana`." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "איזה מהנתיבים הבאים הוא נתיב מלא?",
+      options: [
+        { text: "`projects/site`", why: "הוא לא מתחיל ב-`/`, ולכן הוא יחסי למקום הנוכחי." },
+        { text: "`../photos`", why: "גם הוא יחסי: הוא מתחיל מהמקום הנוכחי ועולה תיקייה." },
+        { text: "`/var/log`", why: "נתיב מלא תמיד מתחיל ב-`/`, ומוביל לאותו מקום מכל מקום." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "למה `ls` לא מציגה את `.bashrc`?",
+      options: [
+        { text: "כי הקובץ נמחק", why: "הוא לא נמחק. `ls -a` תציג אותו." },
+        { text: "כי שמות שמתחילים בנקודה הם קבצים מוסתרים", why: "צריך `ls -a` כדי לראות אותם." },
+        { text: "כי אין לכם הרשאה", why: "זה הקובץ שלכם, והבעיה היא לא הרשאות: הוא פשוט מוסתר." },
+      ],
+      answer: 1,
+    },
+  ]}
+/>

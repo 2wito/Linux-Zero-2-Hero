@@ -1,0 +1,304 @@
+# משתני סביבה והגדרות ה-Shell
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **משתנה**, ומה ההבדל בין משתנה רגיל ל**משתנה סביבה**.
+- `echo $VAR`, `export`, `env` ו-`unset`.
+- איך המעטפת מוצאת פקודות: **`PATH`**.
+- להגדיר קיצורים עם `alias`.
+- לשמור הגדרות לתמיד ב-`~/.bashrc`, ומה ההבדל בינו ל-`~/.profile`.
+</Callout>
+
+## פתקים על המקרר
+
+בכל בית יש פתקים על המקרר: מספר הטלפון של הבייביסיטר, הקוד של האזעקה, מה קונים בסופר. כל מי שנכנס למטבח יכול להציץ בהם.
+
+**משתנה** במעטפת הוא פתק כזה: **שם** ו**ערך**. **משתני סביבה** הם הפתקים שהמעטפת מעבירה הלאה לכל תוכנה שהיא מפעילה, כך שגם התוכנות יודעות, למשל, מי המשתמש ואיפה תיקיית הבית שלו.
+
+## קוראים משתנים: `$`
+
+כדי לקרוא משתנה, כותבים `$` לפני השם:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ echo $HOME
+  /home/dana
+  $ echo $USER
+  dana
+  $ echo "I am $USER and my home is $HOME"
+  I am dana and my home is /home/dana
+`}</TerminalWindow>
+
+המעטפת מחליפה את `$HOME` בערך שלו **לפני** שהיא מריצה את הפקודה. זה עובד גם בתוך מירכאות כפולות `"..."`. (במירכאות בודדות `'...'` לא: שם הכול נשאר בדיוק כמו שכתבתם.)
+
+משתני סביבה נפוצים:
+
+| משתנה | מה יש בו |
+| --- | --- |
+| `HOME` | תיקיית הבית שלכם. `~` הוא קיצור שלו |
+| `USER` | שם המשתמש |
+| `SHELL` | המעטפת שלכם, בדרך כלל `/bin/bash` |
+| `PWD` | התיקייה הנוכחית |
+| `PATH` | איפה לחפש פקודות (מיד נרחיב) |
+| `LANG` | שפה ופורמט תאריכים ומספרים |
+
+את כולם רואים עם `env` (או `printenv`). הרשימה ארוכה, אז כדאי לסנן:
+
+```bash
+env | grep HOME
+```
+
+## יוצרים משתנה
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ COLOR=blue
+  $ echo $COLOR
+  blue
+`}</TerminalWindow>
+
+<Callout type="warning" title="בלי רווחים סביב =">
+`COLOR = blue` (עם רווחים) לא יוצר משתנה. המעטפת חושבת ש-`COLOR` היא פקודה, ו-`=` ו-`blue` הם ארגומנטים, ותקבלו `COLOR: command not found`. כותבים `COLOR=blue`, צמוד.
+</Callout>
+
+נהוג לכתוב שמות של משתני סביבה באותיות גדולות. ואם יש רווח בערך, שמים מירכאות: `NAME="Dana Cohen"`.
+
+## `export`: להעביר את הפתק הלאה
+
+כאן מגיע ההבדל החשוב. הסקריפט `show.sh` מדפיס את הערך של `COLOR`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ ./show.sh
+  COLOR is:
+  $ export COLOR
+  $ ./show.sh
+  COLOR is: blue
+`}</TerminalWindow>
+
+בפעם הראשונה הסקריפט לא ראה כלום! משתנה רגיל קיים **רק במעטפת הנוכחית**. כמו פתק בכיס: אתם יודעים מה כתוב בו, אבל מי שאתם שולחים לסופר לא רואה אותו.
+
+`export` מצמידה את הפתק למקרר: מעכשיו כל תוכנה שהמעטפת מפעילה תקבל אותו. משתנה שעבר `export` הוא **משתנה סביבה**. אפשר גם בשלב אחד: `export COLOR=blue`.
+
+### לפקודה אחת בלבד, ומחיקה
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ COLOR=red ./show.sh
+  COLOR is: red
+  $ echo $COLOR
+  blue
+  $ unset COLOR
+  $ echo "[$COLOR]"
+  []
+`}</TerminalWindow>
+
+- `COLOR=red ./show.sh`: הערך `red` תקף **רק** לפקודה הזו. אחריה, `COLOR` עדיין `blue`.
+- `unset` מוחקת את המשתנה. משתנה שלא קיים הוא פשוט ריק, ולכן הסוגריים ריקים.
+
+## `PATH`: איפה גרות הפקודות
+
+כשאתם מקלידים `ls`, איך המעטפת יודעת להריץ את `/usr/bin/ls`? היא מחפשת ברשימת תיקיות, לפי הסדר. הרשימה הזו היא `PATH`:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ echo $PATH
+  /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+  $ echo $PATH | tr : "\\n"
+  /usr/local/sbin
+  /usr/local/bin
+  /usr/sbin
+  /usr/bin
+  /sbin
+  /bin
+  /usr/games
+  /usr/local/games
+  /snap/bin
+`}</TerminalWindow>
+
+התיקיות מופרדות בנקודתיים. עם `tr` מפרק 13 הפכנו כל `:` לשורה חדשה, וקל יותר לקרוא. ב-WSL תראו בסוף גם תיקיות של Windows (שמתחילות ב-`/mnt/c/`). כך אפשר להריץ תוכנות של Windows מתוך לינוקס.
+
+### למה צריך `./`?
+
+עכשיו אפשר להבין משהו שראינו בפרק 9. התיקייה הנוכחית **לא** נמצאת ב-`PATH`. לכן, כדי להריץ תוכנה שנמצאת כאן, צריך לומר במפורש "מכאן": `./`.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ hello-tool
+  hello-tool: command not found
+  $ ./hello-tool
+  hello from my tool
+`}</TerminalWindow>
+
+זה לא באג, אלא אבטחה: אם התיקייה הנוכחית הייתה ב-`PATH`, מישהו היה יכול להשאיר בתיקייה משותפת קובץ בשם `ls` ולגרום לכם להריץ אותו.
+
+### מוסיפים תיקייה ל-`PATH`
+
+רוצים שהכלים שלכם יעבדו מכל מקום? שמים אותם בתיקייה אחת, ומוסיפים אותה ל-`PATH`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ mkdir ~/tools
+  $ mv hello-tool ~/tools/
+  $ export PATH="$PATH:$HOME/tools"
+  $ hello-tool
+  hello from my tool
+  $ which hello-tool
+  /home/dana/tools/hello-tool
+`}</TerminalWindow>
+
+`"$PATH:$HOME/tools"` אומר: "הערך הקיים, נקודתיים, והתיקייה החדשה".
+
+<Callout type="warning" title="לא לדרוס את PATH">
+`export PATH=$HOME/tools` (בלי `$PATH:` בהתחלה) **מחליף** את כל הרשימה. פתאום `ls`, `cat` ושאר הפקודות "נעלמות", כי המעטפת כבר לא יודעת איפה לחפש אותן. אם זה קרה לכם, אל דאגה: סגרו את הטרמינל ופתחו חדש, והכול חוזר.
+</Callout>
+
+## `alias`: קיצורי דרך
+
+**alias** הוא כינוי: שם קצר לפקודה ארוכה. כמו לקרוא ל"יונתן" פשוט "יוני":
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ alias ll='ls -alF'
+  $ alias ll
+  alias ll='ls -alF'
+  $ type ll
+  ll is aliased to \`ls -alF'
+`}</TerminalWindow>
+
+עכשיו `ll` מריצה `ls -alF`. כמה כינויים שימושיים:
+
+```bash
+alias ..='cd ..'
+alias update='sudo apt update && sudo apt upgrade'
+alias rm='rm -i'
+```
+
+האחרון גורם ל-`rm` לשאול לפני כל מחיקה. `unalias ll` מוחקת כינוי.
+
+## שומרים לתמיד: `~/.bashrc`
+
+הבעיה: כל מה שעשינו עד עכשיו (משתנים, `export`, `alias`) **נעלם** כשסוגרים את הטרמינל. כדי שזה יישאר, כותבים את זה בקובץ שהמעטפת קוראת בכל פעם שהיא נפתחת: **`~/.bashrc`**.
+
+ב-Ubuntu כבר יש בו כמה כינויים מוכנים מראש:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ grep -n 'alias' ~/.bashrc | head -9
+  75:# enable color support of ls and also add handy aliases
+  78:    alias ls='ls --color=auto'
+  79:    #alias dir='dir --color=auto'
+  80:    #alias vdir='vdir --color=auto'
+  82:    alias grep='grep --color=auto'
+  83:    alias fgrep='fgrep --color=auto'
+  84:    alias egrep='egrep --color=auto'
+  90:# some more ls aliases
+  91:alias ll='ls -alF'
+`}</TerminalWindow>
+
+אז `ll` כבר עובדת אצלכם, וגם הצבעים של `ls` מגיעים מכאן. (שורות שמתחילות ב-`#` הן הערות, שהמעטפת מדלגת עליהן.)
+
+כדי להוסיף משהו משלכם, פתחו את הקובץ בעורך והוסיפו שורות **בסוף**:
+
+```bash
+nano ~/.bashrc
+```
+
+```bash title="~/.bashrc (בסוף הקובץ)"
+# my settings
+export PATH="$PATH:$HOME/tools"
+alias ..='cd ..'
+```
+
+שמרו, ואז טענו את הקובץ מחדש כדי שהשינוי ייכנס לתוקף בלי לפתוח טרמינל חדש:
+
+```bash
+source ~/.bashrc
+```
+
+<Callout type="warning" title="גיבוי לפני עריכה">
+טעות ב-`~/.bashrc` (למשל `PATH` דרוס) תופיע בכל טרמינל חדש. לפני העריכה הראשונה, שמרו עותק: `cp ~/.bashrc ~/.bashrc.backup`. אם משהו השתבש, `cp ~/.bashrc.backup ~/.bashrc` מחזיר את המצב.
+</Callout>
+
+### `~/.bashrc` מול `~/.profile`
+
+| קובץ | מתי נקרא | מה שמים בו |
+| --- | --- | --- |
+| `~/.bashrc` | בכל פתיחה של טרמינל אינטראקטיבי | כינויים, prompt, משתנים לשימוש שלכם |
+| `~/.profile` | פעם אחת, בהתחברות (login) | משתני סביבה שכל המערכת צריכה, כמו `PATH` |
+
+ב-Ubuntu, `~/.profile` כבר מוסיף ל-`PATH` את `~/bin` ואת `~/.local/bin` **אם הן קיימות**. כלומר, אם תיצרו תיקייה בשם `~/bin` ותתחברו מחדש, כל מה שבתוכה יעבוד מכל מקום. לשימוש יומיומי, `~/.bashrc` הוא המקום הנכון ברוב המקרים.
+
+## היסטוריה: עוד כמה טריקים
+
+את <Kbd>↑</Kbd> ואת `history` כבר הכרנו בפרק 4. ב-Ubuntu, `~/.bashrc` שומר 1,000 פקודות אחרונות (`HISTSIZE=1000`). עוד כמה קיצורים שימושיים:
+
+| קיצור | מה הוא עושה |
+| --- | --- |
+| <Kbd keys="Ctrl+R" /> | חיפוש בהיסטוריה: מקלידים חלק מפקודה ישנה, ו-<Kbd>Enter</Kbd> מריץ אותה |
+| `!!` | הפקודה הקודמת. הכי שימושי: `sudo !!` כששכחתם `sudo` |
+| `!42` | פקודה מספר 42 מתוך `history` |
+| <Kbd keys="Ctrl+A" /> / <Kbd keys="Ctrl+E" /> | קפיצה לתחילת השורה / לסוף השורה |
+| <Kbd keys="Ctrl+U" /> | מחיקה מהסמן עד תחילת השורה |
+
+<Exercise title="סביבה אישית">
+1. צרו משתנה `CITY` עם שם העיר שלכם, והדפיסו משפט שמשתמש בו.
+2. ודאו שסקריפט (או `bash -c 'echo $CITY'`) רואה אותו.
+3. הוסיפו ל-`~/.bashrc` כינוי בשם `now` שמריץ `date`, טענו מחדש ובדקו.
+
+<Solution>
+
+```bash
+CITY=haifa
+echo "I live in $CITY"
+export CITY
+bash -c 'echo $CITY'
+```
+
+`bash -c` מפעילה מעטפת חדשה, כמו כל תוכנה אחרת. בלי `export` היא לא תראה את `CITY`. (המירכאות הבודדות חשובות: הן מונעות מהמעטפת שלכם להחליף את `$CITY` בעצמה.)
+
+לסעיף 3, הוסיפו בסוף `~/.bashrc` את השורה `alias now='date'`, ואז:
+
+```bash
+source ~/.bashrc
+now
+```
+
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`$VAR` / `VAR=x`", body: "קריאה ויצירה של משתנה. בלי רווחים סביב `=`." },
+    { title: "`export`", body: "הופך משתנה למשתנה סביבה, שכל תוכנה שמופעלת מקבלת." },
+    { title: "`PATH`", body: "רשימת התיקיות שבהן המעטפת מחפשת פקודות. מוסיפים עם `$PATH:` בהתחלה." },
+    { title: "`alias` + `~/.bashrc`", body: "קיצורים, והקובץ ששומר את ההגדרות לתמיד. `source` טוען מחדש." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "הגדרתם `COLOR=blue`, אבל סקריפט שהרצתם לא רואה את הערך. מה חסר?",
+      options: [
+        { text: "`export COLOR`", why: "בלי export המשתנה קיים רק במעטפת הנוכחית." },
+        { text: "`sudo`", why: "אין כאן בעיה של הרשאות." },
+        { text: "רווחים סביב ה-`=`", why: "דווקא רווחים היו שוברים את ההגדרה." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "למה צריך `./script.sh` ולא פשוט `script.sh`?",
+      options: [
+        { text: "כי לסקריפטים אין הרשאת הרצה", why: "את ההרשאה נותן `chmod +x`. זו בעיה אחרת." },
+        { text: "כי התיקייה הנוכחית לא נמצאת ב-`PATH`", why: "וזה בכוונה, מטעמי אבטחה." },
+        { text: "כי `.sh` הוא סוג קובץ מיוחד", why: "לסיומת אין משמעות מיוחדת ללינוקס." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "הוספתם alias ל-`~/.bashrc`, אבל הוא לא עובד בטרמינל הפתוח. מה עושים?",
+      options: [
+        { text: "מאתחלים את המחשב", why: "אין צורך. מספיק לטעון את הקובץ מחדש." },
+        { text: "מריצים `export ~/.bashrc`", why: "`export` מיועדת למשתנים, לא לקבצים." },
+        { text: "`source ~/.bashrc`, או פותחים טרמינל חדש", why: "הקובץ נקרא רק כשהמעטפת עולה, או כשטוענים אותו במפורש." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

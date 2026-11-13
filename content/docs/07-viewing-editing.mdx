@@ -1,0 +1,276 @@
+# צפייה ועריכה של קבצים
+
+<Callout type="info" title="מה נלמד בפרק">
+- להציג קובץ עם `cat`, ולדפדף בקובץ ארוך עם `less`.
+- לראות רק את ההתחלה או הסוף עם `head` ו-`tail`.
+- לעקוב אחרי קובץ שמתעדכן בזמן אמת עם `tail -f`.
+- לערוך קבצים עם **nano**, העורך הידידותי.
+- לשרוד ב-**vim**, וחשוב מכל: לדעת איך יוצאים ממנו.
+</Callout>
+
+## לקרוא לפני שכותבים
+
+הרבה מהעבודה בלינוקס היא **קריאה** של קבצי טקסט: הגדרות, לוגים, רשימות ותסריטים. לכן יש כמה כלים, כל אחד לסיטואציה אחרת:
+
+- `cat`: הדפסת הקובץ כולו. כמו לשפוך את כל הדפים על השולחן.
+- `less`: דפדוף עמוד אחרי עמוד. כמו לקרוא ספר.
+- `head` ו-`tail`: רק ההתחלה או רק הסוף. כמו להציץ בעמוד הראשון או האחרון.
+
+לדוגמאות בפרק נשתמש בקובץ `shopping.txt`, רשימת קניות של 12 שורות.
+
+## `cat`: מציגה הכול
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat shopping.txt
+  milk
+  eggs
+  bread
+  cheese
+  tomatoes
+  cucumbers
+  apples
+  rice
+  pasta
+  olive oil
+  coffee
+  chocolate
+`}</TerminalWindow>
+
+`cat` מצוינת לקבצים קצרים. בקובץ של אלף שורות, היא תדפיס הכול בבת אחת ותראו רק את הסוף. לזה יש את `less`.
+
+<Callout type="tip" title="מאיפה השם?">
+`cat` היא קיצור של concatenate, "לשרשר". היא יודעת לחבר כמה קבצים לרצף אחד: `cat a.txt b.txt` מדפיסה את שניהם, אחד אחרי השני.
+</Callout>
+
+## `less`: מדפדפים בקובץ ארוך
+
+`less` פותחת את הקובץ במסך מלא, ומאפשרת לדפדף בו. היא לא משנה את הקובץ, רק מציגה. כלי כזה נקרא **pager**.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ less /etc/services
+`}</TerminalWindow>
+
+בתוך `less` הפקודות הן מקשים בודדים:
+
+| מקש | מה הוא עושה |
+| --- | --- |
+| <Kbd>Space</Kbd> או <Kbd>f</Kbd> | עמוד הבא |
+| <Kbd>b</Kbd> | עמוד קודם |
+| <Kbd>↑</Kbd> <Kbd>↓</Kbd> | שורה למעלה או למטה |
+| <Kbd>/</Kbd> ואחריו מילה | חיפוש. <Kbd>n</Kbd> קופץ לתוצאה הבאה |
+| <Kbd>g</Kbd> / <Kbd>G</Kbd> | תחילת הקובץ / סוף הקובץ |
+| <Kbd>q</Kbd> | יציאה (quit) |
+
+<Callout type="info" title="נפגוש אותה שוב">
+מה שלמדתם כאן שימושי גם בפרק הבא: דפי העזרה של `man` נפתחים באותו מנגנון, ואותם מקשים עובדים שם.
+</Callout>
+
+## `head` ו-`tail`: ההתחלה והסוף
+
+`head` מציגה את תחילת הקובץ, ו-`tail` את הסוף. כברירת מחדל, 10 שורות. עם `-n` בוחרים כמה:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ head -n 3 shopping.txt
+  milk
+  eggs
+  bread
+  $ tail -n 2 shopping.txt
+  coffee
+  chocolate
+`}</TerminalWindow>
+
+### מעקב בזמן אמת: `tail -f`
+
+תוכנות רבות כותבות **לוגים**: יומן של מה שקורה, שורה אחרי שורה. `tail -f` (follow) מציגה את סוף הקובץ וממשיכה להציג כל שורה חדשה ברגע שהיא נכתבת. כמו לשבת מול לוח יציאות בשדה תעופה שמתעדכן מעצמו.
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ tail -f app.log
+  10:02:11 server started
+  10:02:15 user dana logged in
+  10:03:40 new order #1042
+`}</TerminalWindow>
+
+הפקודה לא נגמרת לבד, כי היא מחכה לשורות חדשות. כשסיימתם, עוצרים עם <Kbd keys="Ctrl+C" />. נשתמש בזה הרבה בפרק 20, על לוגים.
+
+## עריכה עם nano
+
+**nano** הוא עורך טקסט פשוט שעובד בתוך הטרמינל. אין בו עכבר ותפריטים, אבל כל הקיצורים כתובים בתחתית המסך. הוא מותקן כמעט בכל הפצה.
+
+פותחים קובץ עם `nano` ושם הקובץ. אם הקובץ לא קיים, הוא ייווצר כשתשמרו:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ nano todo.txt
+`}</TerminalWindow>
+
+המסך יתחלף לעורך:
+
+```text title="כך נראה nano"
+  GNU nano 7.2                         todo.txt
+call grandma
+buy a birthday gift
+finish chapter 7
+
+
+
+
+^G Help      ^O Write Out ^W Where Is  ^K Cut       ^T Execute   ^C Location
+^X Exit      ^R Read File ^\ Replace   ^U Paste     ^J Justify   ^/ Go To Line
+```
+
+**איך קוראים את התחתית?** הסימן `^` פירושו <Kbd>Ctrl</Kbd>. כלומר `^X Exit` אומר: <Kbd keys="Ctrl+X" /> כדי לצאת.
+
+<Steps>
+
+### כותבים
+
+פשוט מקלידים. החצים זזים בטקסט, ו-<Kbd>Enter</Kbd> יורד שורה. בדיוק כמו ב-Notepad.
+
+### שומרים: Ctrl+O
+
+<Kbd keys="Ctrl+O" /> (Write Out, "כתוב החוצה"). nano ישאל לאיזה שם לשמור (`File Name to Write`) ויציע את השם הנוכחי. לוחצים <Kbd>Enter</Kbd> לאישור.
+
+### יוצאים: Ctrl+X
+
+<Kbd keys="Ctrl+X" />. אם יש שינויים שלא נשמרו, nano ישאל אם לשמור: <Kbd>Y</Kbd> לשמירה, <Kbd>N</Kbd> ליציאה בלי לשמור.
+
+</Steps>
+
+עוד שני קיצורים שימושיים: <Kbd keys="Ctrl+K" /> גוזר את השורה כולה, ו-<Kbd keys="Ctrl+U" /> מדביק אותה.
+
+## לשרוד ב-vim
+
+**vim** הוא העורך החזק ביותר בטרמינל, ומותקן כמעט בכל שרת. הוא גם מפורסם בכך שקשה לצאת ממנו. לא צריך לשלוט בו עכשיו, אבל כדאי לדעת לשרוד בו, כי לפעמים תוכנה תפתח אותו בשבילכם.
+
+הסוד של vim: יש לו **מצבים**. כמו מכונית עם הילוכים:
+
+- **מצב פקודות** (Normal): ברירת המחדל. המקשים הם **פקודות**, לא אותיות. אם תקלידו, יקרו דברים מוזרים.
+- **מצב כתיבה** (Insert): כאן מקלידים טקסט כרגיל.
+
+| כדי ל... | לוחצים |
+| --- | --- |
+| להתחיל לכתוב | <Kbd>i</Kbd> (insert). למטה יופיע `-- INSERT --` |
+| לחזור למצב פקודות | <Kbd>Esc</Kbd> |
+| לשמור ולצאת | <Kbd>Esc</Kbd>, ואז `:wq` ו-<Kbd>Enter</Kbd> (write + quit) |
+| לצאת **בלי** לשמור | <Kbd>Esc</Kbd>, ואז `:q!` ו-<Kbd>Enter</Kbd> |
+
+<Callout type="tip" title="נתקעתם ב-vim?">
+לחצו <Kbd>Esc</Kbd> כמה פעמים, הקלידו `:q!` ולחצו <Kbd>Enter</Kbd>. אתם בחוץ, בלי שום שינוי בקובץ. רוצים ללמוד vim ברצינות? הפקודה `vimtutor` פותחת שיעור אינטראקטיבי של כחצי שעה.
+</Callout>
+
+## אין לכם nano או vim?
+
+ברוב ההפצות הם כבר מותקנים. אם לא, כך מתקינים אותם. `sudo` מריץ את הפקודה עם הרשאות מנהל ויבקש את הסיסמה שלכם. נסביר אותו בפרק 9, ואת התקנת התוכנות בפרק 10.
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install nano vim
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install nano vim-enhanced
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S nano vim
+```
+
+</Distro>
+</DistroTabs>
+
+## תרגול: קוראים קבצים
+
+בסימולטור אין `nano` או `vim`, אבל אפשר לתרגל את `cat`, `head` ו-`tail` על רשימת הקניות.
+
+יש גם דרך להוסיף שורה לקובץ בלי עורך בכלל: `echo "honey" >> shopping.txt`. הסימן `>>` מוסיף את הטקסט **לסוף** הקובץ. נרחיב עליו בפרק 12.
+
+<TerminalSimulator mission="read-files" />
+
+<Exercise title="רשימת משימות ב-nano">
+1. צרו עם nano קובץ בשם `todo.txt` עם לפחות ארבע משימות, כל אחת בשורה.
+2. שמרו וצאו.
+3. הציגו את הקובץ כולו, ואחר כך רק את שתי המשימות הראשונות.
+
+<Solution>
+1. `nano todo.txt`, ומקלידים את המשימות.
+2. <Kbd keys="Ctrl+O" />, <Kbd>Enter</Kbd> לאישור השם, ואז <Kbd keys="Ctrl+X" />.
+3. מציגים:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ cat todo.txt
+  call grandma
+  buy a birthday gift
+  finish chapter 7
+  water the plants
+  $ head -n 2 todo.txt
+  call grandma
+  buy a birthday gift
+`}</TerminalWindow>
+</Solution>
+</Exercise>
+
+<Exercise title="נכנסים ויוצאים מ-vim">
+פתחו את `todo.txt` ב-vim, הוסיפו משימה חדשה בסוף, ושמרו. אחר כך פתחו אותו שוב, מחקו משהו בכוונה, וצאו **בלי** לשמור. בדקו עם `cat` שהקובץ לא נפגע.
+
+<Solution>
+1. `vim todo.txt`. עברו עם החצים לסוף השורה האחרונה.
+2. לחצו <Kbd>i</Kbd>, ואחר כך <Kbd>End</Kbd> ו-<Kbd>Enter</Kbd> לשורה חדשה, והקלידו את המשימה.
+3. <Kbd>Esc</Kbd>, ואז `:wq` ו-<Kbd>Enter</Kbd>. נשמר.
+4. `vim todo.txt` שוב, <Kbd>i</Kbd>, מחקו כמה מילים.
+5. <Kbd>Esc</Kbd>, ואז `:q!` ו-<Kbd>Enter</Kbd>. יצאתם בלי לשמור.
+6. `cat todo.txt` תראה את הקובץ עם המשימה החדשה, בלי המחיקה.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`cat` ו-`less`", body: "`cat` מדפיסה הכול. `less` מדפדפת, ו-`q` יוצאת." },
+    { title: "`head` ו-`tail -n`", body: "ההתחלה או הסוף של קובץ. `tail -f` עוקבת בזמן אמת." },
+    { title: "nano", body: "`Ctrl+O` שומר, `Ctrl+X` יוצא. הסימן `^` פירושו Ctrl." },
+    { title: "vim", body: "`i` לכתיבה, `Esc` לפקודות, `:wq` שמירה ויציאה, `:q!` יציאה בלי שמירה." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "יש לכם קובץ לוג של 50,000 שורות, ואתם רוצים לראות את 20 השורות האחרונות. מה תריצו?",
+      options: [
+        { text: "`cat app.log`", why: "`cat` תדפיס את כל 50,000 השורות. לא מה שרציתם." },
+        { text: "`head -n 20 app.log`", why: "`head` מציגה את **ההתחלה**, ואתם צריכים את הסוף." },
+        { text: "`tail -n 20 app.log`", why: "`tail` מציגה את הסוף, ו-`-n 20` קובע כמה שורות." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "ב-nano כתוב בתחתית `^O Write Out`. מה לוחצים כדי לשמור?",
+      options: [
+        { text: "`Shift+O`", why: "הסימן `^` מייצג את Ctrl, לא את Shift." },
+        { text: "`Ctrl+O`", why: "`^` פירושו Ctrl." },
+        { text: "`^` ואחריו `O`", why: "`^` הוא רק סימון. לוחצים Ctrl יחד עם O." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "נכנסתם ל-vim בטעות ושיניתם משהו. איך יוצאים בלי לשמור?",
+      options: [
+        { text: "`Esc`, ואז `:q!` ו-Enter", why: "ה-`!` אומר \"צא גם אם יש שינויים\", והקובץ לא ישתנה." },
+        { text: "`Ctrl+X`", why: "זה הקיצור של nano. ב-vim הוא לא יוצא." },
+        { text: "`:wq`", why: "`:wq` **שומר** ואז יוצא, כלומר השינוי יישאר בקובץ." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>

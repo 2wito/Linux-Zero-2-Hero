@@ -1,0 +1,444 @@
+# Git על לינוקס
+
+<Callout type="info" title="מה נלמד בפרק">
+- מה זה **Git**, ולמה כל מפתח (וכל מי שמנהל קבצי הגדרות) משתמש בו.
+- התקנה והגדרה ראשונית.
+- המחזור הבסיסי: `init`, `status`, `add`, `commit`, `log`, `diff`.
+- **ענפים** (branches): `switch` ו-`merge`.
+- `.gitignore`, ו-`restore` לביטול שינויים.
+- לחבר את הפרויקט ל-**GitHub** ולהעלות אותו עם מפתח SSH.
+</Callout>
+
+## מכונת זמן לתיקייה
+
+כולנו עשינו את זה: `report.docx`, `report-final.docx`, `report-final-2.docx`, `report-REALLY-final.docx`. ואחרי שבוע אף אחד לא זוכר מה ההבדל בין הקבצים.
+
+**Git** פותר את זה. הוא **מכונת זמן** לתיקייה: בכל פעם שמגיעים לנקודה טובה, "מצלמים" את המצב של כל הקבצים, עם הסבר קצר. אפשר לראות מה השתנה בין שני צילומים, לחזור לכל צילום ישן, ולעבוד על כמה רעיונות במקביל בלי לבלבל ביניהם.
+
+כמה מושגים לפני שמתחילים:
+
+| מושג | מה זה |
+| --- | --- |
+| **repository** (מאגר) | תיקייה ש-Git עוקב אחריה. ההיסטוריה שמורה בתת-תיקייה מוסתרת, `.git` |
+| **commit** | "צילום" של מצב הקבצים, עם הודעה שמסבירה מה השתנה |
+| **branch** (ענף) | קו התפתחות נפרד, כדי לנסות משהו בלי לגעת בגרסה הראשית |
+| **remote** | עותק של המאגר בשרת אחר, למשל ב-GitHub |
+
+Git נוצר ב-2005 על ידי לינוס טורבאלדס, אותו אחד שיצר את לינוקס, כדי לנהל את הקוד של הליבה.
+
+## התקנה והגדרה
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt install git
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install git
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S git
+```
+
+</Distro>
+<Distro id="macos">
+
+בפעם הראשונה שתריצו `git`, macOS תציע להתקין את Command Line Tools, שכוללים אותו. אפשר גם `brew install git`.
+
+</Distro>
+</DistroTabs>
+
+לפני ה-commit הראשון, אומרים ל-Git מי אתם. השם והמייל יופיעו בכל commit שתיצרו:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ git --version
+  git version 2.43.0
+  $ git config --global user.name "Dana Cohen"
+  $ git config --global user.email "dana@example.com"
+  $ git config --global init.defaultBranch main
+  $ git config --global --list
+  user.name=Dana Cohen
+  user.email=dana@example.com
+  init.defaultbranch=main
+`}</TerminalWindow>
+
+- `--global` שומרת את ההגדרות לכל המאגרים שלכם, בקובץ `~/.gitconfig`. עושים את זה **פעם אחת**.
+- `init.defaultBranch main`: לקרוא לענף הראשי `main` (זה השם המקובל היום, וזה מה ש-GitHub מצפה לו).
+
+## המאגר הראשון
+
+נבנה מאגר של מתכונים:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ mkdir recipes && cd recipes
+  $ git init
+  Initialized empty Git repository in /home/dana/recipes/.git/
+  $ git status
+  On branch main
+
+  No commits yet
+
+  nothing to commit (create/copy files and use "git add" to track)
+`}</TerminalWindow>
+
+`git init` הפכה את התיקייה למאגר. `git status` היא הפקודה החשובה ביותר: היא תמיד אומרת **איפה אתם**, ומה כדאי לעשות הלאה. כשמתבלבלים, מריצים `git status`.
+
+### שלושה אזורים
+
+כדי להבין את `add` ו-`commit`, תחשבו על צילום משפחתי:
+
+1. **תיקיית העבודה** (working directory): כל המשפחה בסלון. כאן אתם עורכים קבצים כרגיל.
+2. **אזור ההכנה** (staging area): מי שעומד מול המצלמה. `git add` מזמינה קובץ לתמונה.
+3. **ההיסטוריה** (repository): `git commit` לוחצת על הכפתור. מה שעמד מול המצלמה נשמר לתמיד.
+
+למה צריך שלב ביניים? כי לפעמים שיניתם חמישה קבצים, ורוצים לשמור רק שניים מהם כ"צילום" אחד הגיוני.
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "# My Recipes" > README.md
+  $ echo "flour, sugar, eggs" > cake.txt
+  $ git status
+  On branch main
+
+  No commits yet
+
+  Untracked files:
+    (use "git add <file>..." to include in what will be committed)
+  	README.md
+  	cake.txt
+
+  nothing added to commit but untracked files present (use "git add" to track)
+  $ git add README.md cake.txt
+  $ git status
+  On branch main
+
+  No commits yet
+
+  Changes to be committed:
+    (use "git rm --cached <file>..." to unstage)
+  	new file:   README.md
+  	new file:   cake.txt
+
+  $ git commit -m "Add README and cake recipe"
+  [main (root-commit) 16675ee] Add README and cake recipe
+   2 files changed, 2 insertions(+)
+   create mode 100644 README.md
+   create mode 100644 cake.txt
+`}</TerminalWindow>
+
+1. **`Untracked files`**: Git רואה קבצים חדשים, אבל לא עוקב אחריהם.
+2. אחרי `git add`: **`Changes to be committed`**. הם מול המצלמה.
+3. **`git commit -m "..."`**: הצילום נשמר. `16675ee` הוא **המזהה** של ה-commit (התחלה של מחרוזת ארוכה וייחודית).
+
+<Callout type="tip" title="הודעת commit טובה">
+כתבו **מה** השינוי עושה, בקצרה ובלשון ציווי: "Add cake recipe", "Fix typo in README". לא "update" ולא "changes". בעוד חצי שנה, ההודעות האלה יהיו הדרך היחידה שלכם להבין מה קרה. `git add .` מוסיפה את **כל** השינויים בתיקייה, וזה נוח, אבל בדקו קודם עם `git status` מה נכנס.
+</Callout>
+
+## מה השתנה? `diff` ו-`log`
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "bake 30 minutes at 180C" >> cake.txt
+  $ git status --short
+   M cake.txt
+  $ git diff
+  diff --git a/cake.txt b/cake.txt
+  index 7bf7802..2c53eb3 100644
+  --- a/cake.txt
+  +++ b/cake.txt
+  @@ -1 +1,2 @@
+   flour, sugar, eggs
+  +bake 30 minutes at 180C
+  $ git add cake.txt
+  $ git commit -m "Add baking instructions"
+  [main 675551c] Add baking instructions
+   1 file changed, 1 insertion(+)
+`}</TerminalWindow>
+
+- `status --short`: גרסה מקוצרת. `M` = שונה (modified), `??` = קובץ חדש ש-Git לא עוקב אחריו.
+- `git diff` מראה **בדיוק** מה השתנה ועוד לא נוסף: שורות עם `+` נוספו, ושורות עם `-` נמחקו.
+
+ההיסטוריה:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git log
+  commit 675551cfc9c58f4f85ded84b9b1c9e7d9eb9c994 (HEAD -> main)
+  Author: Dana Cohen <dana@example.com>
+  Date:   Wed Nov 11 21:19:27 2026 +0200
+
+      Add baking instructions
+
+  commit 16675eef5dbc1412191de04dc004e2be70c24601
+  Author: Dana Cohen <dana@example.com>
+  Date:   Wed Nov 11 21:19:23 2026 +0200
+
+      Add README and cake recipe
+  $ git log --oneline
+  675551c (HEAD -> main) Add baking instructions
+  16675ee Add README and cake recipe
+`}</TerminalWindow>
+
+כל commit: מזהה, מי, מתי ומה. החדש ביותר למעלה. **`HEAD`** הוא "אתם נמצאים כאן". `--oneline` מציגה שורה לכל commit, וזו הגרסה שתשתמשו בה רוב הזמן. (אם הפלט ארוך, Git פותחת אותו ב-`less`. יוצאים עם <Kbd>q</Kbd>.)
+
+## ענפים: עולם מקביל
+
+רוצים לנסות מתכון חדש, בלי לקלקל את ספר המתכונים שעובד? פותחים **ענף**: עותק מקביל של ההיסטוריה, שאפשר לעבוד בו בחופשיות. אם הניסוי הצליח, ממזגים אותו חזרה. אם לא, פשוט מוחקים.
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git switch -c pizza
+  Switched to a new branch 'pizza'
+  $ echo "dough, tomato, cheese" > pizza.txt
+  $ git add pizza.txt
+  $ git commit -m "Add pizza recipe"
+  [pizza a5a0e36] Add pizza recipe
+   1 file changed, 1 insertion(+)
+   create mode 100644 pizza.txt
+  $ git branch
+    main
+  * pizza
+  $ ls
+  README.md  cake.txt  pizza.txt
+  $ git switch main
+  Switched to branch 'main'
+  $ ls
+  README.md  cake.txt
+`}</TerminalWindow>
+
+- `git switch -c pizza`: יוצרים (`-c`, create) ענף חדש ועוברים אליו.
+- `git branch`: רשימת הענפים. `*` מסמנת את הנוכחי.
+- שימו לב לקסם: כשחזרנו ל-`main`, הקובץ `pizza.txt` **נעלם** מהתיקייה. הוא לא נמחק, הוא פשוט שייך לענף השני. Git מחליף את הקבצים בתיקייה לפי הענף.
+
+### ממזגים: `merge`
+
+הפיצה הצליחה? ממזגים אותה לענף הראשי:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git merge pizza
+  Updating 675551c..a5a0e36
+  Fast-forward
+   pizza.txt | 1 +
+   1 file changed, 1 insertion(+)
+   create mode 100644 pizza.txt
+  $ git log --oneline --graph
+  * a5a0e36 (HEAD -> main, pizza) Add pizza recipe
+  * 675551c Add baking instructions
+  * 16675ee Add README and cake recipe
+  $ git branch -d pizza
+  Deleted branch pizza (was a5a0e36).
+`}</TerminalWindow>
+
+`Fast-forward`: מאז שיצרנו את הענף, לא השתנה כלום ב-`main`, ולכן Git פשוט "קידם" אותו קדימה. אם שני הענפים שינו **את אותה שורה**, Git תעצור ותבקש מכם להחליט מה נשאר. זה נקרא **merge conflict**, ו-`git status` תסביר מה לעשות.
+
+`branch -d` מוחקת ענף שכבר מוזג. העבודה שלו לא הולכת לאיבוד: היא כבר ב-`main`.
+
+## קבצים שלא שומרים: `.gitignore`
+
+יש קבצים שאסור שייכנסו למאגר: סיסמאות, מפתחות, קבצים זמניים ותיקיות ענקיות שנוצרות אוטומטית. רושמים אותם ב-`.gitignore`:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo "secret=1234" > .env
+  $ echo ".env" > .gitignore
+  $ git status --short
+  ?? .gitignore
+`}</TerminalWindow>
+
+`.env` לא מופיע ב-`status`: Git מתעלמת ממנו. את `.gitignore` עצמו כן מוסיפים ל-commit, כדי שכל מי שעובד על הפרויקט יקבל את אותם כללים.
+
+<Callout type="danger" title="סוד שנכנס ל-commit נשאר בהיסטוריה">
+אם סיסמה או מפתח נכנסו ל-commit, למחוק את הקובץ אחר כך **לא מספיק**: הוא עדיין שמור בהיסטוריה, וכל מי שיש לו עותק של המאגר יכול לשלוף אותו. ואם המאגר כבר עלה ל-GitHub, בוטים סורקים אותו תוך דקות. הפתרון היחיד הוא **להחליף מיד** את הסיסמה או המפתח. לכן כותבים את `.gitignore` **לפני** ה-commit הראשון.
+</Callout>
+
+## ביטול שינויים: `restore`
+
+שיניתם קובץ, והתחרטתם? `git restore` מחזירה אותו למצב של ה-commit האחרון:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ echo oops >> cake.txt
+  $ git restore cake.txt
+  $ git status --short
+  ?? .gitignore
+`}</TerminalWindow>
+
+`cake.txt` כבר לא מופיע כ"שונה". השינוי בוטל.
+
+<Callout type="warning" title="restore מוחקת את השינויים שלא נשמרו">
+`git restore` זורקת את מה ששיניתם מאז ה-commit האחרון, וזה לא חוזר: Git לא שמרה את השינויים האלה מעולם. וגם `git reset --hard` ו-`git clean -fd` שתמצאו בפורומים מוחקות עבודה לצמיתות. לפני כל אחת מהן, `git status` ו-`git diff`, כדי לראות מה עומד ללכת.
+</Callout>
+
+| רוצים... | פקודה |
+| --- | --- |
+| לבטל שינוי בקובץ שעוד לא עשיתם לו `add` | `git restore file` |
+| להוציא קובץ מאזור ההכנה (בלי לאבד את השינוי) | `git restore --staged file` |
+| לראות קובץ כמו שהיה ב-commit ישן | `git show 16675ee:cake.txt` |
+| לבטל commit שכבר עלה ל-GitHub | `git revert <id>` (יוצרת commit חדש שהופך אותו) |
+
+## GitHub: המאגר בענן
+
+**GitHub** (וגם GitLab ו-Bitbucket) הוא שירות שמחזיק עותק של המאגר שלכם באינטרנט: לגיבוי, לשיתוף ולעבודה משותפת. Git היא הכלי, GitHub הוא אחד המקומות שבהם שומרים.
+
+### `clone`: להעתיק מאגר קיים
+
+`git clone` מורידה עותק מלא של מאגר, כולל כל ההיסטוריה:
+
+```bash
+git clone https://github.com/torvalds/linux.git
+```
+
+(זה, אגב, המאגר של ליבת לינוקס עצמה. הוא ענק: כמה ג'יגה-בייט.) `clone` עובדת גם עם מאגר מקומי, וכך אפשר לנסות אותה מיד:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ git clone recipes recipes-copy
+  Cloning into 'recipes-copy'...
+  done.
+  $ ls recipes-copy
+  README.md  cake.txt  pizza.txt
+`}</TerminalWindow>
+
+### מעלים את הפרויקט שלכם
+
+עכשיו נעלה את `recipes` ל-GitHub. כרגע אין למאגר לאן לדחוף:
+
+<TerminalWindow title="~/recipes" user="dana@ubuntu">{`
+  $ git remote -v
+  $ git push
+  fatal: No configured push destination.
+  Either specify the URL from the command-line or configure a remote repository using
+
+      git remote add <name> <url>
+
+  and then push using the remote name
+
+      git push <name>
+`}</TerminalWindow>
+
+`git remote -v` לא החזירה כלום: אין remote. הנה כל התהליך, צעד אחר צעד:
+
+<Steps>
+
+### מוסיפים את מפתח ה-SSH ל-GitHub
+
+בפרק 22 יצרנו מפתח. מציגים את החלק **הציבורי**, ומעתיקים אותו:
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+ב-GitHub: **Settings** → **SSH and GPG keys** → **New SSH key**, ומדביקים.
+
+### בודקים את החיבור
+
+```bash
+ssh -T git@github.com
+```
+
+בפעם הראשונה תופיע שאלת ה-`authenticity of host` שהכרנו בפרק 16. כדאי לוודא שטביעת האצבע מופיעה ברשימה הרשמית של GitHub (בתיעוד שלהם, תחת "GitHub's SSH key fingerprints"), ורק אז לענות `yes`. אם הכול תקין, GitHub תגיד שלום עם שם המשתמש שלכם.
+
+### יוצרים מאגר ריק ב-GitHub
+
+לוחצים **New repository**, נותנים שם (`recipes`), ו**לא** מסמנים "Add a README", כי כבר יש לנו אחד.
+
+### מחברים ודוחפים
+
+```bash
+git remote add origin git@github.com:dana/recipes.git
+git push -u origin main
+```
+
+- `remote add origin ...`: שומרים את כתובת המאגר בשם `origin` (השם המקובל). החליפו את `dana` בשם המשתמש שלכם ב-GitHub.
+- `push -u origin main`: מעלים את הענף `main`. `-u` זוכרת את החיבור, כך שבפעמים הבאות יספיק `git push`.
+
+</Steps>
+
+מעכשיו, המחזור היומי הוא:
+
+```bash
+git pull
+# ...עובדים, עורכים קבצים...
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+`git pull` מורידה שינויים שאחרים (או אתם, ממחשב אחר) העלו. כדאי להתחיל בה כל יום עבודה.
+
+<Callout type="warning" title="git push --force">
+`git push --force` דורסת את ההיסטוריה ב-GitHub בהיסטוריה המקומית שלכם. אם מישהו אחר דחף בינתיים, העבודה שלו נמחקת. בענף משותף, לעולם לא. ואם באמת חייבים, `--force-with-lease` בטוחה יותר: היא נכשלת אם יש שינויים שלא ראיתם.
+</Callout>
+
+<Exercise title="מאגר הגדרות">
+1. צרו מאגר בשם `dotfiles`, והעתיקו אליו את `~/.bashrc`.
+2. עשו commit ראשון.
+3. הוסיפו לקובץ שבמאגר alias חדש, וראו את השינוי עם `git diff`.
+4. עשו commit שני, והציגו את ההיסטוריה בשורה לכל commit.
+
+<Solution>
+
+```bash
+mkdir ~/dotfiles && cd ~/dotfiles
+git init
+cp ~/.bashrc bashrc
+git add bashrc
+git commit -m "Add bashrc"
+echo "alias ll='ls -alF'" >> bashrc
+git diff
+git add bashrc
+git commit -m "Add ll alias"
+git log --oneline
+```
+
+ב-`git diff` תראו שורה אחת עם `+` בסוף הקובץ. כך מתחזקים קבצי הגדרות: כל שינוי מתועד, ואפשר לחזור לכל גרסה.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`status` → `add` → `commit`", body: "מה השתנה, מה נכנס לצילום, ולצלם עם הודעה ברורה." },
+    { title: "`log` / `diff`", body: "ההיסטוריה (`--oneline`), ומה בדיוק השתנה בכל שורה." },
+    { title: "`switch -c` / `merge`", body: "ענף לכל ניסוי, ומיזוג חזרה כשהוא מוכן." },
+    { title: "`remote` / `push` / `pull`", body: "חיבור ל-GitHub עם מפתח SSH, העלאה והורדה של שינויים." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "שיניתם שלושה קבצים, ורוצים שרק אחד מהם ייכנס ל-commit הבא. מה עושים?",
+      options: [
+        { text: "`git commit -m \"...\"` מיד", why: "commit שומרת רק את מה שנמצא באזור ההכנה. צריך קודם להוסיף את הקובץ." },
+        { text: "`git add` רק לקובץ הזה, ואז `git commit`", why: "זה בדיוק התפקיד של אזור ההכנה." },
+        { text: "`git add .` ואז `git commit`", why: "`.` מוסיפה את כל השינויים בתיקייה." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "בטעות עשיתם commit לקובץ עם סיסמה, והעליתם ל-GitHub. מה הדבר הכי חשוב לעשות?",
+      options: [
+        { text: "להחליף מיד את הסיסמה", why: "היא כבר בהיסטוריה, ובוטים סורקים את GitHub ללא הפסקה." },
+        { text: "למחוק את הקובץ ולעשות commit חדש", why: "הקובץ נשאר בהיסטוריה, וכל אחד יכול לשלוף אותו." },
+        { text: "להוסיף את הקובץ ל-`.gitignore`", why: "`.gitignore` משפיעה רק על קבצים שעוד לא נכנסו למאגר." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "מה עושה `git switch -c experiment`?",
+      options: [
+        { text: "מוחקת את הענף `experiment`", why: "מחיקה היא `git branch -d`." },
+        { text: "ממזגת את `experiment` לענף הנוכחי", why: "מיזוג הוא `git merge`." },
+        { text: "יוצרת ענף חדש בשם `experiment` ועוברת אליו", why: "`-c` = create." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

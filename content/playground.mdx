@@ -1,0 +1,161 @@
+{/* Component playground for visual checks (/docs/playground). Not part of the guide; removed before deploy (docs/PLAN.md, phase 6). */}
+
+## טקסט ופקודות בתוך שורה
+
+פקודה בתוך טקסט: `ls -la /home`, ואחריה פסיק. פקודה להקלדה: <Cmd>sudo apt update</Cmd>, ואז ממשיכים לקרוא.
+
+קיצורי מקלדת: לחצו <Kbd keys="Ctrl+Alt+T" /> כדי לפתוח טרמינל, <Kbd keys="Ctrl+C" /> כדי לעצור פקודה, ו-<Kbd>Tab</Kbd> כדי להשלים שם של קובץ.
+
+הפצה עם מספר גרסה: <En>Ubuntu 24.04 LTS</En> היא בחירה טובה למתחילים.
+
+## בחירת הפצה
+
+בחרו הפצה פעם אחת, וכל הלשוניות באתר יעברו אליה (גם בעמודים אחרים, גם אחרי רענון):
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+```bash
+sudo apt update
+sudo apt install htop
+```
+
+</Distro>
+<Distro id="fedora">
+
+```bash
+sudo dnf install htop
+```
+
+</Distro>
+<Distro id="arch">
+
+```bash
+sudo pacman -S htop
+```
+
+</Distro>
+</DistroTabs>
+
+קבוצה שנייה, עם WSL ו-macOS. אם בחרתם הפצה שלא מופיעה כאן, תוצג הלשונית הראשונה:
+
+<DistroTabs>
+<Distro id="ubuntu">
+
+ב-Ubuntu פותחים טרמינל עם <Kbd keys="Ctrl+Alt+T" />.
+
+</Distro>
+<Distro id="wsl">
+
+ב-Windows פותחים PowerShell ומריצים <Cmd>wsl --install</Cmd>.
+
+</Distro>
+<Distro id="macos">
+
+ב-Mac לוחצים <Kbd keys="Cmd+Space" />, מקלידים Terminal ולוחצים <Kbd>Enter</Kbd>.
+
+</Distro>
+</DistroTabs>
+
+## צעדים
+
+<Steps>
+
+### פותחים טרמינל
+
+לחצו <Kbd keys="Ctrl+Alt+T" />. ייפתח חלון עם שורת פקודה.
+
+### בודקים איפה אתם
+
+הקלידו <Cmd>pwd</Cmd> ולחצו <Kbd>Enter</Kbd>. תראו את התיקייה הנוכחית.
+
+### מציגים את הקבצים
+
+<TerminalWindow title="~">{`
+  $ ls
+  Desktop  Documents  Downloads
+`}</TerminalWindow>
+
+</Steps>
+
+## רשימת בדיקה
+
+הסימונים נשמרים בדפדפן, ושני העותקים בעמוד (בהיר וכהה) מסונכרנים:
+
+<Checklist
+  id="playground-setup"
+  title="לפני שממשיכים"
+  items={[
+    "פתחתם טרמינל",
+    "הרצתם `pwd` וראיתם נתיב",
+    "הרצתם `sudo apt update` בלי שגיאות",
+  ]}
+/>
+
+## סיכום הפרק
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`pwd`", body: "מראה באיזו תיקייה אתם נמצאים עכשיו." },
+    { title: "`ls -la`", body: "מציג את כל הקבצים, גם המוסתרים, עם פרטים." },
+    { title: "`cd ..`", body: "עולה תיקייה אחת למעלה." },
+    { title: "נתיב מלא", body: "מתחיל ב-`/` ותמיד מוביל לאותו מקום." },
+  ]}
+/>
+
+## חלון טרמינל
+
+<TerminalWindow title="~/projects">{`
+  $ pwd
+  /home/dana/projects
+  $ ls -l
+  -rw-r--r-- 1 dana dana  120 Nov 11 10:00 notes.txt
+  drwxr-xr-x 2 dana dana 4096 Nov 11 10:02 photos
+  $ echo "שלום, לינוקס!"
+  שלום, לינוקס!
+`}</TerminalWindow>
+
+<TerminalWindow title="~" user="dana@ubuntu" copy={false}>{`
+  $ whoami
+  dana
+  $
+`}</TerminalWindow>
+
+## סימולטור טרמינל
+
+<TerminalSimulator />
+
+<TerminalSimulator mission="navigate" />
+
+## בלוק קוד
+
+```bash title="backup.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+for f in *.txt; do
+  echo "קובץ: $f"   # הערה בעברית
+done
+```
+
+```text title="פלט לדוגמה"
+Reading package lists... Done
+```
+
+## הודעות
+
+<Callout type="info">
+לינוקס הוא **ליבה** (kernel), ומה שאתם מתקינים הוא **הפצה** שבנויה סביבו.
+</Callout>
+
+<Callout type="tip">
+לחצו על <Kbd>Tab</Kbd> כדי להשלים שמות של קבצים ופקודות.
+</Callout>
+
+<Callout type="warning">
+הפקודה `sudo` נותנת הרשאות מלאות. קראו כל פקודה לפני שאתם מריצים אותה.
+</Callout>
+
+<Callout type="danger" title="לעולם אל תריצו את זה">
+הפקודה `rm -rf /` מוחקת את כל המערכת. אין "סל מחזור" בטרמינל.
+</Callout>

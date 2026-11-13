@@ -1,0 +1,411 @@
+# כלי טקסט: grep, sed, awk ועוד
+
+<Callout type="info" title="מה נלמד בפרק">
+- לחפש שורות עם `grep`, ולהבין **ביטויים רגולריים** בסיסיים.
+- לספור עם `wc`, למיין עם `sort` ולמצוא כפילויות עם `uniq`.
+- לחתוך עמודות עם `cut` ולהחליף תווים עם `tr`.
+- מבוא עדין ל-`sed` (חיפוש והחלפה) ול-`awk` (עבודה עם עמודות).
+- לחבר הכול לצינור אחד שעונה על שאלה אמיתית.
+</Callout>
+
+## ארגז כלים של נגר
+
+לנגר אין מכונה אחת שעושה הכול. יש לו מסור, מקדחה, פצירה ומשחזת, וכל אחד מהם עושה דבר אחד, היטב.
+
+בלינוקס, הרבה מאוד מידע הוא **טקסט**: לוגים, קבצי הגדרות, קבצי CSV, פלט של פקודות. הכלים בפרק הזה הם ארגז הכלים לטקסט, ובעזרת הצינור מהפרק הקודם מחברים אותם.
+
+נעבוד עם שני קבצים לדוגמה. לוג של שרתים:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat server.log
+  2026-11-10 08:01 INFO web1 started
+  2026-11-10 08:05 WARN web2 disk 85% full
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:09 INFO web1 GET /home 200
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:15 error db1 connection refused
+  2026-11-10 08:20 INFO web1 GET /home 200
+`}</TerminalWindow>
+
+וטבלת ציונים בפורמט CSV (ערכים מופרדים בפסיקים):
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat scores.csv
+  name,city,score
+  dana,haifa,92
+  yossi,tel-aviv,78
+  noa,haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+`}</TerminalWindow>
+
+<Callout type="tip" title="רוצים לעבוד יחד איתנו?">
+צרו את הקבצים בעורך מפרק 7 (`nano server.log`), והדביקו את התוכן מהדוגמאות.
+</Callout>
+
+## `grep`: מוצאים שורות
+
+`grep` היא מרקר צהוב: היא עוברת על הקובץ ומחזירה רק את השורות שמכילות את מה שחיפשתם.
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep ERROR server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+`}</TerminalWindow>
+
+רק שתיים? בלוג יש גם `error` באותיות קטנות. `grep` מבחינה בין גדולות לקטנות, ו-`-i` (ignore case) מבטלת את זה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -i error server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:15 error db1 connection refused
+  $ grep -c -i error server.log
+  3
+  $ grep -n WARN server.log
+  2:2026-11-10 08:05 WARN web2 disk 85% full
+  $ grep -v INFO server.log
+  2026-11-10 08:05 WARN web2 disk 85% full
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+| אפשרות | מה היא עושה |
+| --- | --- |
+| `-i` | בלי הבדל בין אותיות גדולות לקטנות |
+| `-c` | רק **סופרת** את השורות שנמצאו (count) |
+| `-n` | מוסיפה את **מספר השורה** |
+| `-v` | הפוך: השורות שלא מכילות (invert) |
+| `-r` | מחפשת בכל הקבצים בתיקייה, לעומק (recursive) |
+
+`-r` שימושית במיוחד כשלא יודעים באיזה קובץ מסתתר משהו:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -r "connection" .
+  ./server.log:2026-11-10 08:07 ERROR db1 connection refused
+  ./server.log:2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+## ביטויים רגולריים: חיפוש לפי תבנית
+
+לפעמים לא מחפשים מילה מדויקת, אלא **תבנית**: "שורה שנגמרת ב-200", "שורה שמתחילה בתאריך מסוים". בשביל זה יש **ביטויים רגולריים** (regex). אלה הסימנים הבסיסיים:
+
+| סימן | משמעות | דוגמה |
+| --- | --- | --- |
+| `^` | תחילת השורה | `^2026` |
+| `$` | סוף השורה | `200$` |
+| `.` | תו אחד, כלשהו | `w.b` מתאים ל-web וגם ל-wob |
+| `*` | התו הקודם, 0 פעמים או יותר | `.*` = "כל דבר" |
+| `[abc]` | אחד מהתווים בסוגריים | `web[12]` |
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep "200$" server.log
+  2026-11-10 08:09 INFO web1 GET /home 200
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:20 INFO web1 GET /home 200
+  $ grep "^2026-11-10 08:1" server.log
+  2026-11-10 08:10 ERROR web2 timeout
+  2026-11-10 08:12 INFO web2 GET /about 200
+  2026-11-10 08:15 error db1 connection refused
+  $ grep -i "error.*db1" server.log
+  2026-11-10 08:07 ERROR db1 connection refused
+  2026-11-10 08:15 error db1 connection refused
+`}</TerminalWindow>
+
+- `"200$"`: שורות ש**נגמרות** ב-200, כלומר בקשות שהצליחו.
+- `"^2026-11-10 08:1"`: שורות שמתחילות ב-08:1, כלומר בין 08:10 ל-08:19.
+- `"error.*db1"`: error, אחריה כל דבר, ואחריה db1.
+
+<Callout type="tip" title="תמיד במירכאות">
+שימו את התבנית במירכאות. בלי מירכאות, המעטפת עלולה לפרש את `*` ואת `$` בעצמה, לפני ש-`grep` רואה אותם.
+</Callout>
+
+## `wc`: סופרים
+
+`wc` (word count) סופרת שורות, מילים ותווים:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ wc server.log
+    8  50 328 server.log
+  $ wc -l server.log
+  8 server.log
+`}</TerminalWindow>
+
+8 שורות, 50 מילים ו-328 בתים. ברוב המקרים רוצים רק `-l`, את מספר השורות.
+
+## `cut`: חותכים עמודות
+
+`cut` היא מספריים: היא גוזרת עמודות מכל שורה. `-d` הוא התו שמפריד בין עמודות (delimiter), ו-`-f` הן העמודות שרוצים (fields):
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cut -d, -f1 scores.csv
+  name
+  dana
+  yossi
+  noa
+  avi
+  maya
+  $ cut -d, -f1,3 scores.csv
+  name,score
+  dana,92
+  yossi,78
+  noa,85
+  avi,64
+  maya,97
+`}</TerminalWindow>
+
+## `sort` ו-`uniq`: ממיינים וסופרים כפילויות
+
+`sort` ממיינת שורות. `uniq` מאחדת שורות זהות **שעומדות אחת ליד השנייה**, ו-`uniq -c` גם סופרת כמה היו. בגלל ה"אחת ליד השנייה", כמעט תמיד מריצים `sort` לפני `uniq`.
+
+נבנה שאלה צעד אחר צעד: **כמה תלמידים יש מכל עיר?**
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort
+  haifa
+  haifa
+  jerusalem
+  tel-aviv
+  tel-aviv
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort | uniq -c
+        2 haifa
+        1 jerusalem
+        2 tel-aviv
+  $ cut -d, -f2 scores.csv | tail -n +2 | sort | uniq -c | sort -rn
+        2 tel-aviv
+        2 haifa
+        1 jerusalem
+`}</TerminalWindow>
+
+1. `cut -d, -f2`: רק עמודת העיר.
+2. `tail -n +2`: מדלגת על שורת הכותרת (מציגה מהשורה השנייה והלאה).
+3. `sort`: ממיינת, כך שערים זהות עומדות אחת ליד השנייה.
+4. `uniq -c`: מאחדת וסופרת.
+5. `sort -rn`: ממיינת לפי המספר (`-n`, numeric), מהגדול לקטן (`-r`, reverse).
+
+לטבלאות, `sort` יודעת למיין לפי עמודה: `-t` הוא המפריד ו-`-k` היא העמודה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ tail -n +2 scores.csv | sort -t, -k3 -rn | head -3
+  maya,tel-aviv,97
+  dana,haifa,92
+  noa,haifa,85
+`}</TerminalWindow>
+
+שלושת הציונים הגבוהים, בשורה אחת.
+
+<Callout type="warning" title="sort בלי -n ממיינת כמו מילון">
+בלי `-n`, `sort` משווה תווים, ולכן `100` יבוא לפני `9` (כי `1` קטן מ-`9`). כשממיינים מספרים, תמיד `-n`.
+</Callout>
+
+## `tr`: מחליפים תווים
+
+`tr` (translate) מחליפה תו בתו:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "hello linux" | tr a-z A-Z
+  HELLO LINUX
+  $ tr , ' ' < scores.csv
+  name city score
+  dana haifa 92
+  yossi tel-aviv 78
+  noa haifa 85
+  avi jerusalem 64
+  maya tel-aviv 97
+  $ echo "a   b    c" | tr -s " "
+  a b c
+`}</TerminalWindow>
+
+- `a-z A-Z`: כל אות קטנה הופכת לגדולה.
+- `, ' '`: כל פסיק הופך לרווח.
+- `-s` (squeeze): כמה רווחים ברצף הופכים לרווח אחד.
+
+`tr` קוראת רק מ-stdin, ולכן מזינים לה קובץ עם `<` או `|`.
+
+## `sed`: חיפוש והחלפה
+
+`sed` (stream editor) היא "חפש והחלף" של הטרמינל. הפקודה הנפוצה ביותר שלה היא `s/ישן/חדש/`:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sed "s/haifa/Haifa/" scores.csv
+  name,city,score
+  dana,Haifa,92
+  yossi,tel-aviv,78
+  noa,Haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+  $ sed 's/,/ | /g' scores.csv
+  name | city | score
+  dana | haifa | 92
+  yossi | tel-aviv | 78
+  noa | haifa | 85
+  avi | jerusalem | 64
+  maya | tel-aviv | 97
+`}</TerminalWindow>
+
+- `s` = substitute (החלפה). בלי תוספת, מוחלף רק המופע **הראשון** בכל שורה.
+- `g` בסוף (global) = כל המופעים בשורה. בלעדיו, רק הפסיק הראשון היה מוחלף.
+
+`sed` יודעת גם להציג או למחוק שורות לפי מספר:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ sed -n "2,3p" scores.csv
+  dana,haifa,92
+  yossi,tel-aviv,78
+  $ sed "1d" scores.csv
+  dana,haifa,92
+  yossi,tel-aviv,78
+  noa,haifa,85
+  avi,jerusalem,64
+  maya,tel-aviv,97
+`}</TerminalWindow>
+
+`2,3p` מדפיסה (print) את שורות 2–3, ו-`1d` מוחקת (delete) את השורה הראשונה.
+
+`sed` לא שינתה את הקובץ עצמו. היא רק הציגה את התוצאה. כדי לשנות את הקובץ יש `-i` (in-place):
+
+<Callout type="warning" title="sed -i משנה את הקובץ בלי דרך חזרה">
+`sed -i 's/a/b/g' file` כותבת את השינוי ישר לקובץ. הריצו קודם **בלי** `-i` ובדקו את הפלט. בקבצים חשובים, שמרו גיבוי: `sed -i.bak 's/a/b/g' file` משאירה עותק מקורי בשם `file.bak`.
+</Callout>
+
+## `awk`: עבודה עם עמודות
+
+`awk` היא כמעט שפת תכנות שלמה, אבל 90% מהשימוש בה הם דבר אחד: **להוציא עמודות**. היא מחלקת כל שורה לשדות לפי רווחים, וקוראת להם `$1`, `$2`, `$3` וכן הלאה:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk '{print $3}' server.log
+  INFO
+  WARN
+  ERROR
+  INFO
+  ERROR
+  INFO
+  error
+  INFO
+  $ awk '{print $3, $4}' server.log | sort | uniq -c
+        1 ERROR db1
+        1 ERROR web2
+        3 INFO web1
+        1 INFO web2
+        1 WARN web2
+        1 error db1
+`}</TerminalWindow>
+
+היתרון על `cut`: `awk` מתמודדת יפה עם כמה רווחים ברצף, ויודעת לבצע **תנאים וחישובים**. `-F,` אומרת לה שהמפריד הוא פסיק:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk -F, 'NR > 1 && $3 > 80 {print $1}' scores.csv
+  dana
+  noa
+  maya
+  $ awk -F, 'NR > 1 {sum += $3} END {print sum / (NR - 1)}' scores.csv
+  83.2
+`}</TerminalWindow>
+
+- `NR` הוא מספר השורה. `NR > 1` מדלג על הכותרת.
+- `$3 > 80 {print $1}`: אם הציון מעל 80, הדפס את השם.
+- בשורה השנייה: מחברים את כל הציונים ל-`sum`, ובסוף (`END`) מחלקים במספר התלמידים. הממוצע הוא 83.2.
+
+<Callout type="tip" title="למה NR > 1?">
+בלי הדילוג על הכותרת, `awk` משווה גם את המילה `score` ל-80. ההשוואה בין מילה למספר נעשית כהשוואת טקסט, ו-`name` הייתה מופיעה ברשימת המצטיינים. כדאי לזכור את זה בכל קובץ עם שורת כותרת.
+</Callout>
+
+## הכול ביחד
+
+השאלה: **אילו סוגי הודעות יש בלוג, וכמה מכל סוג?** שימו לב ש-`error` ו-`ERROR` צריכים להיספר יחד:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ awk '{print $3}' server.log | tr a-z A-Z | sort | uniq -c | sort -rn
+        4 INFO
+        3 ERROR
+        1 WARN
+`}</TerminalWindow>
+
+חמש תחנות: עמודה 3 → אותיות גדולות → מיון → ספירה → מיון לפי הכמות. זה כוחו של הטרמינל: שורה אחת שעונה על שאלה אמיתית, על קובץ של 8 שורות או של 8 מיליון.
+
+<Exercise title="חוקרים את הלוג">
+בעזרת `server.log`:
+
+1. הציגו את כל השורות של השרת `web2`.
+2. ספרו כמה בקשות `GET` היו.
+3. הציגו רק את השעות (עמודה 2) של כל השגיאות, בלי הבדל בין `ERROR` ל-`error`.
+
+<Solution>
+
+```bash
+grep web2 server.log
+grep -c GET server.log
+grep -i error server.log | awk '{print $2}'
+```
+
+1. שלוש שורות: WARN, ERROR ו-INFO.
+2. `3`.
+3. `08:07`, `08:10` ו-`08:15`. אפשר גם בלי `awk`: `grep -i error server.log | cut -d' ' -f2`.
+</Solution>
+</Exercise>
+
+<Exercise title="שאלות על הציונים">
+בעזרת `scores.csv`:
+
+1. מי התלמידים מחיפה? (רק השמות)
+2. החליפו את `tel-aviv` ב-`Tel Aviv` בכל הקובץ, והציגו את התוצאה בלי לשנות את הקובץ.
+
+<Solution>
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ grep -i "Haifa" scores.csv | cut -d, -f1
+  dana
+  noa
+`}</TerminalWindow>
+
+ולסעיף 2: `sed 's/tel-aviv/Tel Aviv/g' scores.csv`. בלי `-i`, הקובץ עצמו לא משתנה.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`grep` + regex", body: "מוצאת שורות. `-i`, `-v`, `-c`, `-n`, `-r`, ותבניות כמו `^`, `$` ו-`.*`." },
+    { title: "`sort` | `uniq -c`", body: "ממיינים, ואז סופרים כפילויות. `-n` למספרים, `-r` להפוך." },
+    { title: "`cut` / `tr`", body: "גוזרת עמודות לפי מפריד. מחליפה תו בתו." },
+    { title: "`sed` / `awk`", body: "`s/ישן/חדש/g` לחיפוש והחלפה. `awk '{print $3}'` לעמודות ולחישובים." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "איך מוצאים את כל השורות **שלא** מכילות את המילה DEBUG?",
+      options: [
+        { text: "`grep -c DEBUG`", why: "`-c` סופרת את השורות שכן מכילות." },
+        { text: "`grep -v DEBUG`", why: "`-v` הופכת את החיפוש." },
+        { text: "`grep -i DEBUG`", why: "`-i` מבטלת הבדל בין גדולות לקטנות, אבל עדיין מחפשת את המילה." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "למה כמעט תמיד מריצים `sort` לפני `uniq`?",
+      options: [
+        { text: "כי `uniq` מאחדת רק שורות זהות שעומדות אחת ליד השנייה", why: "המיון מקבץ את השורות הזהות יחד." },
+        { text: "כי `uniq` לא עובדת על קבצים לא ממוינים בכלל", why: "היא עובדת, אבל תפספס כפילויות שאינן צמודות." },
+        { text: "בשביל לחסוך זמן", why: "המיון דווקא לוקח זמן. הוא נחוץ בשביל הנכונות." },
+      ],
+      answer: 0,
+    },
+    {
+      q: "מה עושה `sed 's/cat/dog/' file`?",
+      options: [
+        { text: "משנה את הקובץ ומחליפה כל cat ב-dog", why: "בלי `-i` הקובץ לא משתנה, ובלי `g` מוחלף רק המופע הראשון בכל שורה." },
+        { text: "מוחקת את כל השורות עם cat", why: "בשביל זה צריך `/cat/d`." },
+        { text: "מציגה את הקובץ, כשבכל שורה המופע הראשון של cat מוחלף ב-dog", why: "הקובץ עצמו לא משתנה." },
+      ],
+      answer: 2,
+    },
+  ]}
+/>

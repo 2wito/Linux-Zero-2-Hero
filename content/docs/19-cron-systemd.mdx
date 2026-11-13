@@ -1,0 +1,382 @@
+# אוטומציה: cron ו-systemd
+
+<Callout type="info" title="מה נלמד בפרק">
+- להריץ משימות בזמנים קבועים עם **cron** ו-`crontab`.
+- לקרוא ולכתוב את **תחביר ה-cron** (חמשת הכוכבים).
+- מה זה **systemd** ו**שירות** (service).
+- לנהל שירותים עם `systemctl`: `start`, `stop`, `enable`, `status`.
+- לכתוב **service** ו-**timer** משלכם.
+</Callout>
+
+## השעון המעורר והשומר הקבוע
+
+יש שני סוגים של עבודה שהמחשב צריך לעשות לבד:
+
+- **משימות בזמן קבוע**, כמו שעון מעורר: "כל לילה ב-2:00, תגבה". את זה עושים **cron** ו-**timers** של systemd.
+- **תוכנות שרצות כל הזמן**, כמו שומר במשמרת: שרת אינטרנט, מסד נתונים. הן צריכות לעלות עם המחשב, ולקום מחדש אם נפלו. את זה עושה **systemd**.
+
+## cron: השעון המעורר
+
+**cron** הוא שירות ותיק שבודק כל דקה אם יש משימה שצריך להריץ. לכל משתמש יש טבלה משלו, ה-**crontab**:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ crontab -l
+  no crontab for dana
+`}</TerminalWindow>
+
+`-l` (list) מציגה את הטבלה. כרגע היא ריקה. עורכים אותה עם `crontab -e`, שפותחת עורך (בפעם הראשונה היא תשאל איזה. בחרו `nano`).
+
+### התחביר: חמישה שדות ופקודה
+
+כל שורה ב-crontab היא משימה אחת: **מתי** (חמישה שדות), ו**מה** להריץ:
+
+```text
+┌───────────── דקה (0–59)
+│ ┌─────────── שעה (0–23)
+│ │ ┌───────── יום בחודש (1–31)
+│ │ │ ┌─────── חודש (1–12)
+│ │ │ │ ┌───── יום בשבוע (0–7, כאשר 0 ו-7 הם ראשון)
+│ │ │ │ │
+* * * * *  command
+```
+
+`*` אומר "כל ערך". הנה דוגמאות:
+
+| שורה | מתי |
+| --- | --- |
+| `0 2 * * *` | כל יום ב-02:00 |
+| `30 8 * * 1-5` | שני עד שישי ב-08:30 |
+| `30 8 * * 0-4` | ראשון עד חמישי ב-08:30 (שבוע העבודה בישראל) |
+| `*/15 * * * *` | כל 15 דקות |
+| `0 9 1 * *` | ב-1 בכל חודש ב-09:00 |
+| `0 0 * * 0` | כל יום ראשון בחצות |
+| `@reboot` | פעם אחת, כשהמחשב עולה |
+
+<Callout type="tip" title="בדיקה לפני שמירה">
+אתר כמו crontab.guru מתרגם כל שורת cron לאנגלית פשוטה. כדאי לבדוק שם שורה לפני שמכניסים אותה.
+</Callout>
+
+### ניסוי: משימה שרצה כל דקה
+
+אפשר לטעון crontab גם מקובץ. נשתמש בזה כדי לראות את cron עובד באמת:
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ echo "* * * * * date >> /tmp/cron-test.log" > cronfile
+  $ crontab cronfile
+  $ crontab -l
+  * * * * * date >> /tmp/cron-test.log
+`}</TerminalWindow>
+
+מחכים עד תחילת הדקה הבאה, ו...
+
+<TerminalWindow title="~/lab" user="dana@ubuntu">{`
+  $ cat /tmp/cron-test.log
+  Wed Nov 11 21:12:01 IST 2026
+  $ crontab -r
+  $ crontab -l
+  no crontab for dana
+`}</TerminalWindow>
+
+cron הריץ את `date` בדיוק בתחילת הדקה (21:12:01). אחר כך מחקנו את הטבלה עם `-r` (remove).
+
+<Callout type="warning" title="crontab -r מוחקת את כל הטבלה">
+`-r` מוחקת **את כל** המשימות שלכם, בלי לשאול. ו-`r` צמודה ל-`e` במקלדת. לפני שינויים, שמרו גיבוי: `crontab -l > my-crontab.bak`. אם משהו נמחק, `crontab my-crontab.bak` מחזירה הכול.
+</Callout>
+
+### שלוש מלכודות של cron
+
+1. **`PATH` קצר.** cron לא קוראת את `~/.bashrc`, ולכן ה-`PATH` שלה מינימלי. השתמשו ב**נתיבים מלאים**: `/home/dana/scripts/backup.sh` ולא `backup.sh`.
+2. **פלט נעלם.** אין טרמינל, אז לא תראו שגיאות. הפנו את הפלט ללוג: `... >> /home/dana/backup.log 2>&1`.
+3. **אחוז הוא תו מיוחד.** בתוך crontab, `%` הופך לשורה חדשה. ב-`date +%F` צריך לכתוב `date +\%F`.
+
+לכן, כך תיראה שורה אמיתית שמריצה את סקריפט הגיבוי מפרק 18 כל לילה ב-02:00:
+
+```text title="crontab -e"
+0 2 * * * /home/dana/scripts/backup.sh /home/dana/projects >> /home/dana/backup.log 2>&1
+```
+
+## systemd: מנהל המערכת
+
+**systemd** הוא התהליך הראשון שעולה במחשב (זוכרים את PID 1 מפרק 11?). הוא מפעיל את כל השאר, ומשגיח עליהם. כל דבר שהוא מנהל נקרא **unit**, והסוג הנפוץ ביותר הוא **service**: תוכנה שרצה ברקע.
+
+### מצב של שירות: `systemctl status`
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl status cron --no-pager
+  ● cron.service - Regular background program processing daemon
+       Loaded: loaded (/usr/lib/systemd/system/cron.service; enabled; preset: enabled)
+       Active: active (running) since Wed 2026-11-11 21:10:41 IST; 14s ago
+         Docs: man:cron(8)
+     Main PID: 221 (cron)
+        Tasks: 1 (limit: 9306)
+       Memory: 444.0K (peak: 1.5M)
+          CPU: 5ms
+       CGroup: /system.slice/cron.service
+               └─221 /usr/sbin/cron -f -P
+
+  Nov 11 21:10:41 ubuntu systemd[1]: Started cron.service - Regular background program processing daemon.
+  Nov 11 21:10:41 ubuntu cron[221]: (CRON) INFO (pidfile fd = 3)
+  Nov 11 21:10:41 ubuntu cron[221]: (CRON) INFO (Running @reboot jobs)
+`}</TerminalWindow>
+
+השורות החשובות:
+
+- **`Loaded`**: איפה קובץ ההגדרות, ו-`enabled` אומר שהשירות **עולה אוטומטית** עם המחשב.
+- **`Active: active (running)`**: הוא רץ עכשיו. נקודה ירוקה `●`. אם השירות נפל תראו `failed`, בנקודה אדומה.
+- **`Main PID`**: ה-PID של התהליך.
+- **בסוף**: השורות האחרונות מהלוג של השירות. לרוב, שם מופיעה הסיבה כששירות לא עולה.
+
+(`--no-pager` מדפיסה הכול ישר למסך. בלעדיה, הפלט נפתח בתוך `less`, ויוצאים עם <Kbd>q</Kbd>.)
+
+### הפקודות של `systemctl`
+
+| פקודה | מה היא עושה |
+| --- | --- |
+| `systemctl status X` | מה המצב, ומה כתוב בלוג |
+| `systemctl start X` | הפעלה **עכשיו** |
+| `systemctl stop X` | עצירה **עכשיו** |
+| `systemctl restart X` | עצירה והפעלה מחדש (למשל אחרי שינוי הגדרות) |
+| `systemctl enable X` | הפעלה **אוטומטית בכל הדלקה** |
+| `systemctl disable X` | ביטול ההפעלה האוטומטית |
+| `systemctl enable --now X` | גם `enable` וגם `start` |
+| `systemctl list-units --type=service` | כל השירותים הטעונים |
+
+<Callout type="tip" title="start ≠ enable">
+`start` מפעילה את השירות **עכשיו**, אבל אחרי הפעלה מחדש של המחשב הוא לא יעלה. `enable` דואגת שיעלה **בכל הדלקה**, אבל לא מפעילה אותו עכשיו. ברוב המקרים רוצים את שניהם: `enable --now`.
+</Callout>
+
+פעולות על שירותי מערכת דורשות הרשאות:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl restart cron
+  Failed to restart cron.service: Interactive authentication required.
+  See system logs and 'systemctl status cron.service' for details.
+`}</TerminalWindow>
+
+<Callout type="warning" title="sudo systemctl stop: דעו מה אתם עוצרים">
+`sudo systemctl stop` על שירות כמו `ssh` בשרת מרוחק תנתק אתכם, ולא תוכלו להתחבר בחזרה. `NetworkManager` יעצור את הרשת. לפני שעוצרים או מבטלים שירות, ודאו שאתם יודעים מה הוא עושה.
+</Callout>
+
+ב-WSL, systemd פועלת כברירת מחדל בגרסאות החדשות של Ubuntu. ב-macOS אין systemd. שם המקבילה היא `launchd`.
+
+## כותבים service ו-timer משלנו
+
+עכשיו נבנה משהו אמיתי: שירות שכותב דוח של שטח הדיסק, ו-**timer** שמפעיל אותו כל בוקר. timer הוא הגרסה של systemd ל-cron, עם כמה יתרונות: לוגים מסודרים, ומשימה שהוחמצה (כי המחשב היה כבוי) רצה כשהוא נדלק.
+
+נעבוד עם **שירותי משתמש** (`--user`), שלא צריכים `sudo`. הקבצים נכנסים ל-`~/.config/systemd/user/`:
+
+```bash
+mkdir -p ~/.config/systemd/user
+```
+
+```ini title="~/.config/systemd/user/disk-report.service"
+[Unit]
+Description=Write a disk usage report
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'date >> %h/disk-report.log; df -h / | tail -1 >> %h/disk-report.log'
+```
+
+- **`[Unit]`**: תיאור שיופיע ב-`status` ובלוגים.
+- **`Type=oneshot`**: השירות רץ פעם אחת ונגמר (ולא רץ כל הזמן, כמו שרת).
+- **`ExecStart`**: הפקודה. חייבת להיות עם **נתיב מלא**. `%h` הוא תיקיית הבית.
+
+```ini title="~/.config/systemd/user/disk-report.timer"
+[Unit]
+Description=Run disk-report every day at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+- **`OnCalendar`**: מתי. `*-*-* 08:00:00` = כל יום (שנה-חודש-יום), ב-08:00.
+- **`Persistent=true`**: אם המחשב היה כבוי ב-08:00, המשימה תרוץ כשהוא יידלק.
+- **`[Install]`**: מה `enable` עושה. כאן, לחבר את ה-timer לרשימת ה-timers שעולים אוטומטית.
+
+### מפעילים
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user daemon-reload
+  $ systemctl --user start disk-report.service
+  $ systemctl --user status disk-report.service --no-pager
+  ○ disk-report.service - Write a disk usage report
+       Loaded: loaded (/home/dana/.config/systemd/user/disk-report.service; static)
+       Active: inactive (dead)
+
+  Nov 11 21:11:17 ubuntu systemd[409]: Starting disk-report.service - Write a disk usage report...
+  Nov 11 21:11:17 ubuntu systemd[409]: Finished disk-report.service - Write a disk usage report.
+  $ cat ~/disk-report.log
+  Wed Nov 11 21:11:17 IST 2026
+  /dev/sdd       1007G  7.5G  949G   1% /
+`}</TerminalWindow>
+
+1. `daemon-reload`: אומרת ל-systemd לקרוא מחדש את קבצי ההגדרות. **חובה** אחרי כל יצירה או שינוי של קובץ unit.
+2. `start`: הפעלנו את השירות ידנית, כדי לבדוק שהוא עובד.
+3. `inactive (dead)` נשמע מפחיד, אבל לשירות `oneshot` זה בדיוק מה שצריך: הוא רץ, סיים (`Finished`), ונגמר.
+4. הדוח נכתב.
+
+עכשיו מפעילים את ה-timer:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemctl --user enable --now disk-report.timer
+  Created symlink /home/dana/.config/systemd/user/timers.target.wants/disk-report.timer → /home/dana/.config/systemd/user/disk-report.timer.
+  $ systemctl --user list-timers --no-pager
+  NEXT                            LEFT LAST PASSED UNIT                           ACTIVATES
+  Wed 2026-11-11 21:16:17 IST 4min 59s -         - launchpadlib-cache-clean.timer launchpadlib-cache-clean.service
+  Thu 2026-11-12 08:00:00 IST      10h -         - disk-report.timer              disk-report.service
+
+  2 timers listed.
+  Pass --all to see loaded but inactive timers, too.
+`}</TerminalWindow>
+
+`list-timers` מראה שהריצה הבאה היא מחר ב-08:00, בעוד 10 שעות. (`enable` עובדת בעזרת קיצור דרך, symlink, וזה מה שההודעה הראשונה מספרת.)
+
+### בודקים ביטויי זמן
+
+`systemd-analyze calendar` מתרגמת ביטוי `OnCalendar` ומראה מתי הוא יפעל בפעם הבאה. מומלץ לבדוק לפני שמשתמשים:
+
+<TerminalWindow title="~" user="dana@ubuntu">{`
+  $ systemd-analyze calendar 'Mon..Fri 09:30'
+    Original form: Mon..Fri 09:30
+  Normalized form: Mon..Fri *-*-* 09:30:00
+      Next elapse: Thu 2026-11-12 09:30:00 IST
+         (in UTC): Thu 2026-11-12 07:30:00 UTC
+         From now: 12h left
+`}</TerminalWindow>
+
+ביטויים נוספים: `daily`, `weekly`, `hourly`, `*:0/15` (כל 15 דקות) ו-`Sat *-*-* 10:00` (כל שבת ב-10:00).
+
+### שירות מערכת אמיתי
+
+לשירות שצריך לרוץ **כל הזמן** (שרת, בוט) ולעלות עם המחשב, הקובץ נכנס ל-`/etc/systemd/system/` ומנוהל עם `sudo`. ההבדלים העיקריים:
+
+```ini title="/etc/systemd/system/myapp.service"
+[Unit]
+Description=My web app
+After=network.target
+
+[Service]
+User=dana
+WorkingDirectory=/home/dana/myapp
+ExecStart=/usr/bin/python3 -m http.server 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+- **`After=network.target`**: לעלות רק אחרי שהרשת מוכנה.
+- **`User=dana`**: לרוץ כמשתמש רגיל, לא כ-root (עקרון ההרשאה המינימלית מפרק 9).
+- **`Restart=on-failure`**: אם התוכנה קרסה, systemd תפעיל אותה מחדש.
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now myapp
+systemctl status myapp
+```
+
+## cron או systemd timer?
+
+| | cron | systemd timer |
+| --- | --- | --- |
+| קלות הגדרה | שורה אחת | שני קבצים |
+| לוגים | צריך להפנות ידנית | אוטומטית, ב-`journalctl` (פרק 20) |
+| משימה שהוחמצה כשהמחשב כבוי | לא תרוץ | `Persistent=true` מריצה אותה |
+| מתאים ל... | משימות פשוטות ומהירות | משימות חשובות, שרתים |
+
+<Exercise title="משימת cron">
+כתבו שורות cron עבור:
+
+1. הרצת `/home/dana/scripts/cleanup.sh` כל יום ראשון ב-03:00.
+2. הרצת `/home/dana/scripts/check.sh` כל 10 דקות.
+3. הרצת `/home/dana/scripts/report.sh` ב-07:30 בימים שני עד שישי, כשהפלט והשגיאות נכתבים ל-`/home/dana/report.log`.
+
+<Solution>
+
+```text
+0 3 * * 0 /home/dana/scripts/cleanup.sh
+*/10 * * * * /home/dana/scripts/check.sh
+30 7 * * 1-5 /home/dana/scripts/report.sh >> /home/dana/report.log 2>&1
+```
+
+בשורה 1, ה-`0` האחרון הוא יום ראשון. בשורה 3, `1-5` הם שני עד שישי. שימו לב שהדקה באה **לפני** השעה: `30 7` הוא 07:30.
+</Solution>
+</Exercise>
+
+<Exercise title="timer לגיבוי">
+בהינתן שירות בשם `backup.service`, כתבו `backup.timer` שמפעיל אותו כל יום ב-02:00, ושמריץ גיבוי שהוחמץ אם המחשב היה כבוי. איך מפעילים אותו?
+
+<Solution>
+
+```ini title="~/.config/systemd/user/backup.timer"
+[Unit]
+Description=Nightly backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now backup.timer
+systemctl --user list-timers
+```
+
+timer מפעיל את ה-service **עם אותו שם** (backup.timer → backup.service), ולכן לא צריך לכתוב אותו במפורש.
+</Solution>
+</Exercise>
+
+## סיכום
+
+<RecapCards
+  title="מה למדנו"
+  items={[
+    { title: "`crontab -e` / `-l`", body: "טבלת המשימות שלכם. דקה, שעה, יום, חודש, יום בשבוע, ופקודה עם נתיב מלא." },
+    { title: "`systemctl status`", body: "האם שירות רץ, האם הוא עולה עם המחשב, ומה כתוב בלוג שלו." },
+    { title: "`start` ≠ `enable`", body: "start = עכשיו. enable = בכל הדלקה. `enable --now` = שניהם." },
+    { title: "service + timer", body: "מה להריץ, ומתי. `daemon-reload` אחרי כל שינוי בקבצים." },
+  ]}
+/>
+
+## בוחן קצר
+
+<MiniQuiz
+  questions={[
+    {
+      q: "מתי תרוץ המשימה `15 4 * * *`?",
+      options: [
+        { text: "כל 15 דקות, 4 פעמים ביום", why: "השדה הראשון הוא דקה מסוימת, לא מרווח. מרווח נכתב `*/15`." },
+        { text: "ב-15 בכל חודש, ב-04:00", why: "היום בחודש הוא השדה השלישי, וכאן הוא `*`." },
+        { text: "כל יום ב-04:15", why: "דקה 15, שעה 4, וכל השאר `*`." },
+      ],
+      answer: 2,
+    },
+    {
+      q: "הפעלתם שירות עם `systemctl start`, ואחרי הפעלה מחדש של המחשב הוא לא רץ. למה?",
+      options: [
+        { text: "השירות קרס", why: "לא בהכרח. `start` פשוט לא משפיעה על ההדלקה הבאה." },
+        { text: "לא הרצתם `enable`", why: "רק `enable` גורמת לשירות לעלות בכל הדלקה." },
+        { text: "צריך להריץ `daemon-reload` אחרי כל הדלקה", why: "`daemon-reload` נחוצה רק אחרי שינוי בקבצי ה-unit." },
+      ],
+      answer: 1,
+    },
+    {
+      q: "סקריפט עובד כשמריצים אותו ביד, אבל לא מתוך cron. מה הסיבה הסבירה ביותר?",
+      options: [
+        { text: "cron משתמשת ב-`PATH` מינימלי, והסקריפט קורא לפקודות או לקבצים בלי נתיב מלא", why: "cron לא קוראת את `~/.bashrc`. נתיבים מלאים פותרים את רוב הבעיות." },
+        { text: "cron לא יודעת להריץ סקריפטים", why: "היא בהחלט יודעת. זה כל התפקיד שלה." },
+        { text: "צריך להריץ את cron עם sudo", why: "לכל משתמש יש crontab משלו, בלי sudo." },
+      ],
+      answer: 0,
+    },
+  ]}
+/>
