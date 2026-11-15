@@ -251,6 +251,12 @@ Many commands don't read file names from stdin. They want them as **arguments**.
 `find ... | xargs rm` is a common combination, and a dangerous one when names have spaces: `rm` may delete a different file that happens to be named like half the name. If you're deleting, prefer `find ... -delete`, or at least `-print0 | xargs -0 rm`, and always after checking without `rm`.
 </Callout>
 
+## Practice: detectives in the simulator
+
+The simulator has the chapter's `project` directory. Here you can also try `-delete` with zero risk: if you deleted too much, the reset button brings everything back. Try `find . -name *.py` without quotes too, and see what happens.
+
+<TerminalSimulator mission="find-files" />
+
 <Exercise title="File detective">
 In your home directory:
 

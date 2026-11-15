@@ -138,6 +138,10 @@ The combinations worth remembering:
 | `755` | `rwxr-xr-x` | A script or directory everyone can use |
 | `700` | `rwx------` | A private directory |
 
+Try it yourself: tick permissions, or type a number, and see the symbolic form and the ready command.
+
+<PermissionCalculator initial="644" file="notes.txt" />
+
 <Callout type="warning" title="Don't use chmod 777">
 `777` lets **anyone** on the system read, change and run the file. On forums it shows up as the "fix" for a Permission denied error, but it's like leaving the door open because you lost the key. The right fix is almost always `chown` to the correct owner, or `644`/`755`.
 </Callout>
@@ -223,6 +227,12 @@ Sometimes you'll see `s` or `t` instead of `x`:
 - **`s` (setuid)** on `passwd`: the program runs with its owner's privileges (root). That's how a regular user can change their own password, even though `/etc/shadow` belongs to root.
 
 You don't need to set these yourself. It's enough to recognize them.
+
+## Practice: keys and locks
+
+The simulator has a small script, `hello.sh`, and a file `secret.txt`. Try running the script, read the error, and fix it with `chmod`. After every change, `ls -l` shows what changed. And try `chmod` on `/etc/hostname` too, which belongs to root.
+
+<TerminalSimulator mission="permissions" />
 
 <Exercise title="Private, public and executable">
 In a new directory:

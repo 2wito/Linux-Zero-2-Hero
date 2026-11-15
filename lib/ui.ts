@@ -3,7 +3,16 @@ import type { Level } from "@/lib/syllabus";
 
 /** Example for a command that was run without a file name (simulator hint). */
 const operandExample = (cmd: string) =>
-  ({ mkdir: "mkdir projects", touch: "touch notes.txt", rm: "rm old.txt", rmdir: "rmdir empty-dir", cp: "cp notes.txt backup.txt", mv: "mv old.txt new.txt" } as Record<string, string>)[cmd] ??
+  ({
+    mkdir: "mkdir projects",
+    touch: "touch notes.txt",
+    rm: "rm old.txt",
+    rmdir: "rmdir empty-dir",
+    cp: "cp notes.txt backup.txt",
+    mv: "mv old.txt new.txt",
+    chmod: "chmod u+x hello.sh",
+    chown: "chown dana notes.txt",
+  } as Record<string, string>)[cmd] ??
   `${cmd} notes.txt`;
 
 // Every UI string lives here, per language. Hebrew is the source of truth; English mirrors its shape.
@@ -220,6 +229,33 @@ const he = {
     external: "(נפתח בלשונית חדשה)",
     language: { he: "בעברית", en: "באנגלית" },
   },
+  anatomy: {
+    title: "אנטומיה של פקודה",
+    pick: "בחרו חלק בפקודה כדי לראות מה הוא עושה:",
+    roles: { command: "פקודה", option: "אפשרות", argument: "ארגומנט" },
+    roleBody: { command: "מה לעשות.", option: "איך לעשות את זה.", argument: "על מה לעשות את זה." },
+  },
+  permCalc: {
+    title: "מחשבון הרשאות",
+    who: { u: "בעלים (u)", g: "קבוצה (g)", o: "אחרים (o)" },
+    perms: { r: "קריאה (r)", w: "כתיבה (w)", x: "הרצה (x)" },
+    grid: "בחירת הרשאות לפי בעלים, קבוצה ואחרים",
+    numeric: "מספרי",
+    symbolic: "סמלי",
+    command: "הפקודה",
+    invalid: "שלוש ספרות, כל אחת בין 0 ל-7.",
+    presets: "צירופים נפוצים",
+    toggle: (who: string, perm: string) => `${perm} ל${who}`,
+  },
+  cron: {
+    title: "מתרגם cron",
+    label: "שורת זמנים של cron (חמישה שדות)",
+    fields: ["דקה", "שעה", "יום בחודש", "חודש", "יום בשבוע"],
+    meaning: "המשמעות",
+    invalid: "השורה לא תקינה. צריך חמישה שדות מופרדים ברווחים, או קיצור כמו @daily.",
+    invalidField: (name: string) => `השדה "${name}" לא תקין. בדקו את הטווח שלו בטבלה למעלה.`,
+    examples: "דוגמאות לניסיון",
+  },
   challenges: {
     practices: "מתרגל את",
     chapterLink: (n: number) => `פרק ${n}`,
@@ -267,10 +303,18 @@ const he = {
         ["rm", "מחיקה (-r לתיקיות)"],
         ["rmdir", "מחיקת תיקייה ריקה"],
         ["grep", "חיפוש טקסט (-i, -n, -v, -c)"],
-        ["whoami / history", "מי אני / מה הרצתי"],
+        ["wc", "ספירת שורות, מילים ובתים (-l, -w, -c)"],
+        ["sort / uniq", "מיון (-n, -r, -u, -t, -k) וכפילויות (-c, -d)"],
+        ["cut", "חיתוך עמודות (-d, -f, -c)"],
+        ["find", "חיפוש קבצים (-name, -type, -size, -delete)"],
+        ["chmod / chown", "הרשאות ובעלות (u+x, 755)"],
+        ["./script.sh", "הרצת סקריפט (או bash script.sh)"],
+        ["whoami / id", "מי אני, ובאילו קבוצות"],
+        ["date / uname / which", "תאריך, מערכת, איפה פקודה"],
+        ["man / history", "תיאור קצר של פקודה / מה הרצתי"],
         ["clear", "ניקוי המסך"],
       ] as [string, string][],
-      footer: "עובדים גם `|`, `>`, `>>`, `&&` ו-`*`. Tab משלים שמות, החצים מדפדפים בהיסטוריה, Ctrl+L מנקה.",
+      footer: "עובדים גם `|`, `>`, `>>`, `2>`, `<`, `&&` ו-`*`. Tab משלים שמות, החצים מדפדפים בהיסטוריה, Ctrl+L מנקה.",
     },
     hints: {
       notFound: (a: string) => `אין כאן קובץ או תיקייה בשם \`${a}\`. בדקו את השם עם \`ls\`, ושימו לב לאותיות גדולות וקטנות.`,
@@ -309,6 +353,17 @@ const he = {
       tooManyArgs: () => "`cd` מקבלת תיקייה אחת. אם יש רווח בשם, עטפו אותו במירכאות: `cd \"my files\"`.",
       helpFlag: (a: string) => `בטרמינל אמיתי \`${a} --help\` מציגה עזרה מלאה. בסימולטור הקלידו \`help\`.`,
       badNumber: (a: string) => `אחרי \`-n\` צריך לבוא מספר, למשל \`-n 3\`. \`${a}\` הוא לא מספר.`,
+      notExecutable: (a: string) =>
+        `לקובץ \`${a}\` אין הרשאת הרצה (\`x\`). תנו אותה עם \`chmod u+x ${a}\`, ובדקו עם \`ls -l\`. אפשר גם \`bash ${a}\`, שלא צריכה הרשאת הרצה.`,
+      notPermitted: (a: string) =>
+        `רק הבעלים של \`${a}\` (או root) יכולים לשנות את ההרשאות שלו, ורק root יכול להעביר בעלות. בטרמינל אמיתי עושים את זה עם \`sudo\`.`,
+      badMode: (a: string) =>
+        `\`${a}\` היא לא הרשאה תקינה. שתי צורות: מספרית, כמו \`755\` או \`644\`, או סמלית: למי (\`u\`, \`g\`, \`o\`, \`a\`), פעולה (\`+\`, \`-\`, \`=\`) והרשאה (\`r\`, \`w\`, \`x\`), כמו \`u+x\`.`,
+      manPage: (a: string) =>
+        `בטרמינל אמיתי \`man ${a}\` פותחת את המדריך המלא בתוך \`less\` (חיפוש עם \`/\`, יציאה עם \`q\`). כאן מוצגת רק שורת התיאור.`,
+      cutList: () => "ל-`cut` צריך לומר מה לחתוך: `-f` לעמודות (עם `-d` למפריד), או `-c` לתווים. לדוגמה: `cut -d, -f1 scores.csv`.",
+      findQuote: (a: string) =>
+        `ה-shell הרחיב את הכוכבית לשמות של קבצים לפני ש-\`find\` רצה. שימו את התבנית במירכאות: \`find . ${a} "*.txt"\`.`,
     } satisfies Record<HintKey, (a: string) => string>,
   },
 };
@@ -526,6 +581,33 @@ const en: Ui = {
     external: "(opens in a new tab)",
     language: { he: "In Hebrew", en: "In English" },
   },
+  anatomy: {
+    title: "Anatomy of a command",
+    pick: "Choose a part of the command to see what it does:",
+    roles: { command: "Command", option: "Option", argument: "Argument" },
+    roleBody: { command: "What to do.", option: "How to do it.", argument: "What to do it to." },
+  },
+  permCalc: {
+    title: "Permission calculator",
+    who: { u: "Owner (u)", g: "Group (g)", o: "Others (o)" },
+    perms: { r: "Read (r)", w: "Write (w)", x: "Execute (x)" },
+    grid: "Choose permissions for owner, group and others",
+    numeric: "Numeric",
+    symbolic: "Symbolic",
+    command: "The command",
+    invalid: "Three digits, each from 0 to 7.",
+    presets: "Common combinations",
+    toggle: (who: string, perm: string) => `${perm} for ${who}`,
+  },
+  cron: {
+    title: "Cron translator",
+    label: "A cron schedule (five fields)",
+    fields: ["Minute", "Hour", "Day of month", "Month", "Day of week"],
+    meaning: "What it means",
+    invalid: "That line isn't valid. It needs five fields separated by spaces, or a shortcut like @daily.",
+    invalidField: (name: string) => `The "${name}" field isn't valid. Check its range in the table above.`,
+    examples: "Examples to try",
+  },
   challenges: {
     practices: "Practices",
     chapterLink: (n: number) => `Chapter ${n}`,
@@ -573,10 +655,18 @@ const en: Ui = {
         ["rm", "Delete (-r for directories)"],
         ["rmdir", "Delete an empty directory"],
         ["grep", "Search text (-i, -n, -v, -c)"],
-        ["whoami / history", "Who am I / what did I run"],
+        ["wc", "Count lines, words and bytes (-l, -w, -c)"],
+        ["sort / uniq", "Sort (-n, -r, -u, -t, -k) and duplicates (-c, -d)"],
+        ["cut", "Cut out columns (-d, -f, -c)"],
+        ["find", "Find files (-name, -type, -size, -delete)"],
+        ["chmod / chown", "Permissions and ownership (u+x, 755)"],
+        ["./script.sh", "Run a script (or bash script.sh)"],
+        ["whoami / id", "Who am I, and in which groups"],
+        ["date / uname / which", "Date, system, where a command lives"],
+        ["man / history", "A command's short description / what did I run"],
         ["clear", "Clear the screen"],
       ] as [string, string][],
-      footer: "`|`, `>`, `>>`, `&&` and `*` work too. Tab completes names, the arrow keys browse history, Ctrl+L clears.",
+      footer: "`|`, `>`, `>>`, `2>`, `<`, `&&` and `*` work too. Tab completes names, the arrow keys browse history, Ctrl+L clears.",
     },
     hints: {
       notFound: (a: string) => `There's no file or directory called \`${a}\` here. Check the name with \`ls\`; upper and lower case matter.`,
@@ -615,6 +705,17 @@ const en: Ui = {
       tooManyArgs: () => "`cd` takes one directory. If the name has a space, wrap it in quotes: `cd \"my files\"`.",
       helpFlag: (a: string) => `In a real terminal, \`${a} --help\` shows full help. In the simulator, type \`help\`.`,
       badNumber: (a: string) => `\`-n\` must be followed by a number, e.g. \`-n 3\`. \`${a}\` isn't a number.`,
+      notExecutable: (a: string) =>
+        `\`${a}\` has no execute permission (\`x\`). Add it with \`chmod u+x ${a}\`, and check with \`ls -l\`. You can also use \`bash ${a}\`, which doesn't need execute permission.`,
+      notPermitted: (a: string) =>
+        `Only the owner of \`${a}\` (or root) can change its permissions, and only root can give a file to someone else. In a real terminal that takes \`sudo\`.`,
+      badMode: (a: string) =>
+        `\`${a}\` isn't a valid mode. Two forms: numeric, like \`755\` or \`644\`, or symbolic: who (\`u\`, \`g\`, \`o\`, \`a\`), action (\`+\`, \`-\`, \`=\`) and permission (\`r\`, \`w\`, \`x\`), like \`u+x\`.`,
+      manPage: (a: string) =>
+        `In a real terminal, \`man ${a}\` opens the full manual inside \`less\` (search with \`/\`, quit with \`q\`). Here you only see the description line.`,
+      cutList: () => "`cut` needs to know what to cut: `-f` for fields (with `-d` for the separator), or `-c` for characters. For example: `cut -d, -f1 scores.csv`.",
+      findQuote: (a: string) =>
+        `The shell expanded the asterisk into file names before \`find\` ran. Put the pattern in quotes: \`find . ${a} "*.txt"\`.`,
     } satisfies Record<HintKey, (a: string) => string>,
   },
 };

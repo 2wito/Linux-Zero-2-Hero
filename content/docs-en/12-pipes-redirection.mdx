@@ -209,6 +209,12 @@ Write to a new file and then swap: `sort shopping.txt > sorted.txt && mv sorted.
 | `\|` | One command's stdout to the next one's stdin |
 | `tee` | To the screen and to a file |
 
+## Practice: connecting pipes
+
+The simulator supports `>`, `>>`, `<`, `2>` and `|`, along with `sort`, `wc`, `grep`, `head` and `tail`. Try the trap too: `sort shopping.txt > shopping.txt`, then `cat shopping.txt`. The reset button brings the file back.
+
+<TerminalSimulator mission="pipes" />
+
 <Exercise title="An assembly line">
 1. Save the list of files in `/etc` to a file called `etc-list.txt`.
 2. Append the list of files in `/var` to the end of the same file.

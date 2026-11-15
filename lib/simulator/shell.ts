@@ -8,6 +8,7 @@ import {
   defaultHome,
   displayPath,
   HOME,
+  HOST,
   resolvePath,
   USER,
   VirtualFs,
@@ -17,6 +18,18 @@ import {
   type Tree,
 } from "@/lib/simulator/fs";
 import { globToRegExp, hasGlobChars, parse, unescapeGlob, type ParseError, type Word } from "@/lib/simulator/parse";
+import {
+  applyMode,
+  cutLine,
+  formatDate,
+  parseCutList,
+  parseSortKey,
+  permString,
+  sortLines,
+  uniqLines,
+  wcCounts,
+  wcWidth,
+} from "@/lib/simulator/text";
 
 export type HintKey =
   | "notFound"
@@ -51,7 +64,13 @@ export type HintKey =
   | "grepUsage"
   | "tooManyArgs"
   | "helpFlag"
-  | "badNumber";
+  | "badNumber"
+  | "notExecutable"
+  | "notPermitted"
+  | "badMode"
+  | "manPage"
+  | "cutList"
+  | "findQuote";
 
 export type Hint = { key: HintKey; arg: string };
 export type OutLine =
@@ -64,31 +83,93 @@ export type LogEntry = { line: string; name: string; args: string[]; code: numbe
 
 /** Commands the simulator implements, for `help`, Tab completion and hints. */
 export const COMMANDS = [
+  "bash",
   "cat",
   "cd",
+  "chmod",
+  "chown",
   "clear",
   "cp",
+  "cut",
+  "date",
   "echo",
+  "find",
   "grep",
   "head",
   "help",
   "history",
+  "id",
   "ls",
+  "man",
   "mkdir",
   "mv",
   "pwd",
   "rm",
   "rmdir",
+  "sort",
   "tail",
   "touch",
+  "uname",
+  "uniq",
+  "wc",
+  "which",
   "whoami",
 ] as const;
 
+/** Shell builtins: no file in /usr/bin and no man page of their own. */
+const BUILTINS = new Set(["cd", "help", "history"]);
+
 /** Real commands people may try that the simulator doesn't have: answered with a hint, not a fake error. */
 const KNOWN_ELSEWHERE = new Set([
-  "apt", "chmod", "chown", "cut", "date", "df", "du", "find", "free", "git", "less", "ln", "man", "more", "nano",
-  "ping", "ps", "sort", "ssh", "tar", "top", "tree", "uniq", "vi", "vim", "wc", "wget", "curl", "which", "file",
+  "apt", "awk", "df", "du", "free", "git", "less", "ln", "more", "nano", "ping", "ps", "sed", "sh", "ssh", "tar",
+  "top", "tr", "tree", "vi", "vim", "wget", "curl", "file", "xargs", "exit", "kill", "jobs", "type", "env", "export",
 ]);
+
+/** `whatis` lines for `man` (Ubuntu 24.04): section and one-line description. */
+const MAN_PAGES: Record<string, [string, string]> = {
+  bash: ["1", "GNU Bourne-Again SHell"],
+  cat: ["1", "concatenate files and print on the standard output"],
+  chmod: ["1", "change file mode bits"],
+  chown: ["1", "change file owner and group"],
+  clear: ["1", "clear the terminal screen"],
+  cp: ["1", "copy files and directories"],
+  cut: ["1", "remove sections from each line of files"],
+  date: ["1", "print or set the system date and time"],
+  echo: ["1", "display a line of text"],
+  find: ["1", "search for files in a directory hierarchy"],
+  grep: ["1", "print lines that match patterns"],
+  head: ["1", "output the first part of files"],
+  history: ["3readline", "GNU History Library"],
+  id: ["1", "print real and effective user and group IDs"],
+  ls: ["1", "list directory contents"],
+  man: ["1", "an interface to the system reference manuals"],
+  mkdir: ["1", "make directories"],
+  mv: ["1", "move (rename) files"],
+  pwd: ["1", "print name of current/working directory"],
+  rm: ["1", "remove files or directories"],
+  rmdir: ["1", "remove empty directories"],
+  sort: ["1", "sort lines of text files"],
+  tail: ["1", "output the last part of files"],
+  touch: ["1", "change file timestamps"],
+  uname: ["1", "print system information"],
+  uniq: ["1", "report or omit repeated lines"],
+  wc: ["1", "print newline, word, and byte counts for each file"],
+  which: ["1", "locate a command"],
+  whoami: ["1", "print effective user name"],
+};
+
+/** The simulated user's groups, as `id` prints them on a fresh Ubuntu install. */
+const GROUPS: [number, string][] = [
+  [1000, USER],
+  [4, "adm"],
+  [24, "cdrom"],
+  [27, "sudo"],
+  [30, "dip"],
+  [46, "plugdev"],
+  [100, "users"],
+];
+const OTHER_GROUPS = new Set(["root", "nogroup", "daemon", "bin", "sys", "tty", "disk", "www-data", "shadow", "docker"]);
+const KERNEL_RELEASE = "6.8.0-48-generic";
 
 // Standard Israeli keyboard layout: the Hebrew letter on each Latin key, so "ךד" (typed with the layout on Hebrew) reads as "ls".
 const HEBREW_KEYS: Record<string, string> = {
@@ -117,7 +198,20 @@ const REAL_FLAGS: Record<string, string> = {
   tail: "cfFnqsvz",
   pwd: "LP",
   history: "acdnprsw",
+  wc: "clmwL",
+  sort: "bcCdfghikmMnoRrsStTuVz",
+  uniq: "cdDfiszuw",
+  cut: "bcdfnsz",
+  chmod: "cfvR",
+  chown: "cfhvRHLP",
+  id: "agGnruzZ",
+  uname: "asnrvmpio",
+  which: "as",
+  date: "dfIRrsu",
 };
+
+/** Commands whose usage errors exit with 2 instead of 1. */
+const USAGE_EXIT_2 = new Set(["ls", "grep", "sort"]);
 
 const FS_MESSAGE: Record<FsError, string> = {
   ENOENT: "No such file or directory",
@@ -134,6 +228,8 @@ class Exit extends Error {
 type Ctx = {
   args: string[];
   stdin: string | null;
+  /** stdin is a regular file (`< file`), not a pipe: wc sizes its columns differently. */
+  stdinFile: boolean;
   tty: boolean;
   out: (text: string) => void;
   err: (text: string) => void;
@@ -154,6 +250,8 @@ export class Shell {
   visited = new Set<string>();
   columns: number;
   private lastCode = 0;
+  /** How many scripts deep we are (a script that runs itself stops here instead of looping forever). */
+  private scriptDepth = 0;
 
   constructor(opts: ShellOptions = {}) {
     this.fs = new VirtualFs(opts.home ?? defaultHome, opts.now);
@@ -231,6 +329,7 @@ export class Shell {
     let stderrFile: { dir: DirNode; name: string; append: boolean } | null = null;
     let stderrNull = false;
     let stderr = "";
+    let stdinFile = false;
 
     // Redirects are set up before the command runs; a failing redirect stops the command (exit 1).
     for (const r of cmd.redirects) {
@@ -245,6 +344,7 @@ export class Shell {
         const read = this.readFile(path, (msg) => toScreen("err", `bash: ${path}: ${msg}`), hint);
         if (read === null) return { stdout: null, code: 1 };
         stdin = read;
+        stdinFile = true;
         continue;
       }
       if (abs === "/dev/null") {
@@ -268,6 +368,7 @@ export class Shell {
     const ctx: Ctx = {
       args: argv.slice(1),
       stdin,
+      stdinFile,
       tty,
       out: (text) => {
         stdout += text;
@@ -351,7 +452,42 @@ export class Shell {
         this.options(ctx, "history", "");
         ctx.out(this.history.map((l, i) => `${String(i + 1).padStart(5)}  ${l}\n`).join(""));
         return 0;
+      case "wc":
+        return this.wc(ctx);
+      case "sort":
+        return this.sort(ctx);
+      case "uniq":
+        return this.uniq(ctx);
+      case "cut":
+        return this.cut(ctx);
+      case "chmod":
+        return this.chmod(ctx);
+      case "chown":
+        return this.chown(ctx);
+      case "id":
+        return this.id(ctx);
+      case "uname":
+        return this.uname(ctx);
+      case "which":
+        return this.which(ctx);
+      case "date":
+        return this.date(ctx);
+      case "man":
+        return this.man(ctx);
+      case "find":
+        return this.find(ctx);
+      case "bash":
+        if (!ctx.args.length) {
+          ctx.hint("notInSimulator", "bash");
+          return 0;
+        }
+        if (ctx.args[0].startsWith("-")) {
+          ctx.hint("unsupportedOption", `bash ${ctx.args[0]}`);
+          return 1;
+        }
+        return this.runScript(ctx.args[0], ctx, true);
     }
+    if (name.includes("/")) return this.runScript(name, ctx, false);
     if (name === "sudo") {
       ctx.hint("noSudo");
       return 1;
@@ -425,7 +561,7 @@ export class Shell {
         ctx.err(`${cmd}: unrecognized option '${a}'`);
         ctx.err(`Try '${cmd} --help' for more information.`);
         ctx.hint("invalidOption", a);
-        throw new Exit(cmd === "ls" || cmd === "grep" ? 2 : 1);
+        throw new Exit(USAGE_EXIT_2.has(cmd) ? 2 : 1);
       }
       if (!a.startsWith("-") || a === "-") {
         operands.push(a);
@@ -443,7 +579,7 @@ export class Shell {
           if (value === undefined) {
             ctx.err(`${cmd}: option requires an argument -- '${f}'`);
             ctx.err(`Try '${cmd} --help' for more information.`);
-            throw new Exit(cmd === "grep" ? 2 : 1);
+            throw new Exit(USAGE_EXIT_2.has(cmd) ? 2 : 1);
           }
           values.set(f, value);
           break;
@@ -457,7 +593,7 @@ export class Shell {
           ctx.err(`${cmd}: invalid option -- '${f}'`);
           ctx.err(`Try '${cmd} --help' for more information.`);
           ctx.hint("invalidOption", `-${f}`);
-          throw new Exit(cmd === "ls" || cmd === "grep" ? 2 : 1);
+          throw new Exit(USAGE_EXIT_2.has(cmd) ? 2 : 1);
         }
         flags.add(f);
       }
@@ -650,14 +786,16 @@ export class Shell {
         mode: modeString(e.node),
         links: String(e.node.type === "dir" ? 2 + [...e.node.children.values()].filter((c) => c.type === "dir").length : 1),
         owner: e.node.owner,
+        group: e.node.group ?? e.node.owner,
         size: o.human ? humanSize(sizeOf(e.node)) : String(sizeOf(e.node)),
         date: lsDate(this.fs.timeOf(e.node), this.fs.now()),
         name: label(e),
       }));
       const w = (k: "links" | "owner" | "size") => Math.max(0, ...rows.map((r) => r[k].length));
       const [lw, ow, sw] = [w("links"), w("owner"), w("size")];
+      const gw = Math.max(0, ...rows.map((r) => r.group.length));
       const lines = rows.map(
-        (r) => `${r.mode} ${r.links.padStart(lw)} ${r.owner.padEnd(ow)} ${r.owner.padEnd(ow)} ${r.size.padStart(sw)} ${r.date} ${r.name}`,
+        (r) => `${r.mode} ${r.links.padStart(lw)} ${r.owner.padEnd(ow)} ${r.group.padEnd(gw)} ${r.size.padStart(sw)} ${r.date} ${r.name}`,
       );
       if (o.total) {
         const kb = entries.reduce((sum, e) => sum + blocksOf(e.node), 0);
@@ -1072,9 +1210,21 @@ export class Shell {
       return 1;
     }
     const n = Math.abs(parseInt(raw, 10));
+    // `tail -n +2` starts at line 2; `head -n -2` drops the last 2 lines (GNU).
+    const fromStart = cmd === "tail" && raw.startsWith("+");
+    const allBut = cmd === "head" && raw.startsWith("-");
     const pick = (text: string) => {
       const lines = splitLines(text);
-      const chosen = cmd === "head" ? lines.slice(0, n) : n === 0 ? [] : lines.slice(-n);
+      const chosen =
+        cmd === "head"
+          ? allBut
+            ? lines.slice(0, Math.max(0, lines.length - n))
+            : lines.slice(0, n)
+          : fromStart
+            ? lines.slice(Math.max(0, n - 1))
+            : n === 0
+              ? []
+              : lines.slice(-n);
       return chosen.map((l) => l + "\n").join("");
     };
     if (!operands.length) {
@@ -1102,6 +1252,599 @@ export class Shell {
     }
     ctx.out(parts.join("\n"));
     return code;
+  }
+
+  // ---------- text tools: wc, sort, uniq, cut ----------
+
+  /** Reads every operand (or stdin) as text. `onError` prints the command's own message; returns null on the first failure if `stopOnError`. */
+  private readInputs(
+    ctx: Ctx,
+    operands: string[],
+    onError: (path: string, msg: string) => void,
+  ): { texts: string[]; failed: boolean } | null {
+    if (!operands.length) {
+      if (ctx.stdin === null) {
+        ctx.hint("catWaits");
+        return null;
+      }
+      return { texts: [ctx.stdin], failed: false };
+    }
+    const texts: string[] = [];
+    let failed = false;
+    for (const path of operands) {
+      const content = this.readFile(path, (msg) => onError(path, msg), ctx.hint);
+      if (content === null) failed = true;
+      else texts.push(content);
+    }
+    return { texts, failed };
+  }
+
+  private wc(ctx: Ctx): number {
+    const { flags, operands } = this.options(ctx, "wc", "lwmc");
+    const show = { l: flags.has("l"), w: flags.has("w"), m: flags.has("m"), c: flags.has("c") };
+    if (!show.l && !show.w && !show.m && !show.c) show.l = show.w = show.c = true;
+    const fields = [show.l, show.w, show.m, show.c].filter(Boolean).length;
+    type Input = { name: string | null; counts: ReturnType<typeof wcCounts> | null; regular: boolean; size: number; failed: boolean };
+    const inputs: Input[] = [];
+    let code = 0;
+    if (!operands.length) {
+      if (ctx.stdin === null) {
+        ctx.hint("catWaits");
+        return 0;
+      }
+      const c = wcCounts(ctx.stdin);
+      inputs.push({ name: null, counts: c, regular: ctx.stdinFile, size: c.bytes, failed: false });
+    }
+    for (const path of operands) {
+      const found = this.fs.lookup(resolvePath(this.cwd, path));
+      const error = found.error ?? (found.node.type === "file" && !can(found.node, "r") ? "EACCES" : null);
+      if (error) {
+        ctx.err(`wc: ${path}: ${FS_MESSAGE[error]}`);
+        this.fsHint(ctx, error, path);
+        inputs.push({ name: path, counts: null, regular: false, size: 0, failed: true });
+        code = 1;
+      } else if (found.node!.type === "dir") {
+        ctx.err(`wc: ${path}: Is a directory`);
+        ctx.hint("isDirRead", path);
+        inputs.push({ name: path, counts: { lines: 0, words: 0, chars: 0, bytes: 0 }, regular: false, size: 0, failed: false });
+        code = 1;
+      } else {
+        const c = wcCounts((found.node as { content: string }).content);
+        inputs.push({ name: path, counts: c, regular: true, size: c.bytes, failed: false });
+      }
+    }
+    const width = wcWidth(inputs, fields);
+    const total = { lines: 0, words: 0, chars: 0, bytes: 0 };
+    const row = (c: typeof total, name: string | null) =>
+      [show.l ? c.lines : null, show.w ? c.words : null, show.m ? c.chars : null, show.c ? c.bytes : null]
+        .filter((v): v is number => v !== null)
+        .map((v) => String(v).padStart(width))
+        .join(" ") + (name === null ? "" : ` ${name}`);
+    let out = "";
+    for (const i of inputs) {
+      if (!i.counts) continue;
+      out += row(i.counts, i.name) + "\n";
+      total.lines += i.counts.lines;
+      total.words += i.counts.words;
+      total.chars += i.counts.chars;
+      total.bytes += i.counts.bytes;
+    }
+    if (inputs.length > 1) out += row(total, "total") + "\n";
+    ctx.out(out);
+    return code;
+  }
+
+  private sort(ctx: Ctx): number {
+    const { flags, values, operands } = this.options(ctx, "sort", "nrufh", { withValue: "tk" });
+    const key = values.get("k");
+    if (key !== undefined && !parseSortKey(key)) {
+      ctx.err(`sort: invalid number at field start: invalid count at start of ‘${key}’`);
+      ctx.hint("invalidOption", `-k ${key}`);
+      return 2;
+    }
+    let failure = false;
+    const read = this.readInputs(ctx, operands, (path, msg) => {
+      if (failure) return;
+      failure = true;
+      ctx.err(msg === "Is a directory" ? `sort: read failed: ${path}: ${msg}` : `sort: cannot read: ${path}: ${msg}`);
+    });
+    if (!read) return 0;
+    if (read.failed) return 2;
+    const lines = read.texts.flatMap((t) => splitLines(t));
+    const sorted = sortLines(lines, {
+      numeric: flags.has("n"),
+      human: flags.has("h"),
+      reverse: flags.has("r"),
+      unique: flags.has("u"),
+      fold: flags.has("f"),
+      sep: values.get("t"),
+      key,
+    });
+    ctx.out(sorted.map((l) => l + "\n").join(""));
+    return 0;
+  }
+
+  private uniq(ctx: Ctx): number {
+    const { flags, operands } = this.options(ctx, "uniq", "cdui");
+    const [input, output] = operands;
+    let failed = false;
+    const read = this.readInputs(ctx, input === undefined ? [] : [input], (path, msg) => {
+      failed = true;
+      ctx.err(msg === "Is a directory" ? `uniq: error reading '${path}': ${msg}` : `uniq: ${path}: ${msg}`);
+    });
+    if (!read) return 0;
+    if (failed) return 1;
+    const text =
+      uniqLines(splitLines(read.texts[0] ?? ""), { count: flags.has("c"), repeated: flags.has("d"), unique: flags.has("u"), ignoreCase: flags.has("i") })
+        .map((l) => l + "\n")
+        .join("");
+    if (output === undefined) {
+      ctx.out(text);
+      return 0;
+    }
+    const abs = resolvePath(this.cwd, output);
+    const opened = this.openForWrite(abs, output, (msg) => ctx.err(`uniq: ${output}: ${msg}`), ctx.hint);
+    if (!opened) return 1;
+    this.fs.writeFile(opened.dir, opened.name, text);
+    return 0;
+  }
+
+  private cut(ctx: Ctx): number {
+    const { flags, values, operands } = this.options(ctx, "cut", "s", { withValue: "dfcb" });
+    const usage = (msg: string, hint?: () => void): number => {
+      ctx.err(`cut: ${msg}`);
+      ctx.err("Try 'cut --help' for more information.");
+      hint?.();
+      return 1;
+    };
+    const lists = (["f", "c", "b"] as const).filter((f) => values.has(f));
+    if (lists.length > 1) return usage("only one list may be specified");
+    if (!lists.length) return usage("you must specify a list of bytes, characters, or fields", () => ctx.hint("cutList"));
+    const mode = lists[0] === "f" ? "fields" : "chars";
+    const delim = values.get("d") ?? "\t";
+    if ([...delim].length !== 1) return usage("the delimiter must be a single character");
+    const ranges = parseCutList(values.get(lists[0])!, mode);
+    if ("error" in ranges) return usage(ranges.error, () => ctx.hint("cutList"));
+    let code = 0;
+    const read = this.readInputs(ctx, operands, (path, msg) => {
+      code = 1;
+      ctx.err(`cut: ${path}: ${msg}`);
+    });
+    if (!read) return 0;
+    const out = read.texts
+      .flatMap((t) => splitLines(t))
+      .map((l) => cutLine(l, ranges, mode, delim, flags.has("s")))
+      .filter((l): l is string => l !== null);
+    ctx.out(out.map((l) => l + "\n").join(""));
+    return code;
+  }
+
+  // ---------- permissions: chmod, chown, id ----------
+
+  private chmod(ctx: Ctx): number {
+    let recursive = false;
+    let mode: string | undefined;
+    const files: string[] = [];
+    for (const a of ctx.args) {
+      if (mode === undefined && /^-[rwxXst]+$/.test(a)) {
+        mode = a; // "-x" is a mode (remove x), not an option
+        continue;
+      }
+      if (a === "--help" || a === "--version") {
+        ctx.hint("helpFlag", "chmod");
+        return 0;
+      }
+      if (a.startsWith("-") && a.length > 1) {
+        for (const f of a.slice(1)) {
+          if (f === "R") recursive = true;
+          else if (REAL_FLAGS.chmod.includes(f)) {
+            ctx.hint("unsupportedOption", `chmod -${f}`);
+            return 1;
+          } else {
+            ctx.err(`chmod: invalid option -- '${f}'`);
+            ctx.err("Try 'chmod --help' for more information.");
+            ctx.hint("invalidOption", `-${f}`);
+            return 1;
+          }
+        }
+        continue;
+      }
+      if (mode === undefined) mode = a;
+      else files.push(a);
+    }
+    if (mode === undefined) this.missing(ctx, "chmod");
+    if (!files.length) this.missing(ctx, "chmod", `missing operand after ‘${mode}’`);
+    if (applyMode(mode, 0o644, false) === null) {
+      ctx.err(`chmod: invalid mode: ‘${mode}’`);
+      ctx.err("Try 'chmod --help' for more information.");
+      ctx.hint("badMode", mode);
+      return 1;
+    }
+    let code = 0;
+    const apply = (path: string, node: FsNode) => {
+      if (node.owner !== USER) {
+        ctx.err(`chmod: changing permissions of '${path}': Operation not permitted`);
+        ctx.hint("notPermitted", path);
+        code = 1;
+        return;
+      }
+      node.mode = applyMode(mode!, node.mode, node.type === "dir")!;
+      if (recursive && node.type === "dir") {
+        for (const n of VirtualFs.names(node)) apply(`${path.replace(/\/+$/, "")}/${n}`, node.children.get(n)!);
+      }
+    };
+    for (const path of files) {
+      const found = this.fs.lookup(resolvePath(this.cwd, path));
+      if (found.error) {
+        ctx.err(`chmod: cannot access '${path}': ${FS_MESSAGE[found.error]}`);
+        this.fsHint(ctx, found.error, path);
+        code = 1;
+        continue;
+      }
+      apply(path, found.node);
+    }
+    return code;
+  }
+
+  private chown(ctx: Ctx): number {
+    const { flags, operands } = this.options(ctx, "chown", "R");
+    const [spec, ...files] = operands;
+    if (spec === undefined) this.missing(ctx, "chown");
+    if (!files.length) this.missing(ctx, "chown", `missing operand after ‘${spec}’`);
+    const [user, group = ""] = spec.split(":");
+    if (user !== "" && user !== USER && user !== "root") {
+      ctx.err(`chown: invalid user: ‘${spec}’`);
+      return 1;
+    }
+    const member = GROUPS.some(([, g]) => g === group);
+    if (group !== "" && !member && !OTHER_GROUPS.has(group)) {
+      ctx.err(`chown: invalid group: ‘${spec}’`);
+      return 1;
+    }
+    let code = 0;
+    const apply = (path: string, node: FsNode) => {
+      // Only root may give a file away; an owner may only switch to a group they belong to.
+      if (node.owner !== USER || (user !== "" && user !== USER) || (group !== "" && !member)) {
+        ctx.err(`chown: changing ownership of '${path}': Operation not permitted`);
+        ctx.hint("notPermitted", path);
+        code = 1;
+        return;
+      }
+      if (group) node.group = group === USER ? undefined : group;
+      if (flags.has("R") && node.type === "dir") {
+        for (const n of VirtualFs.names(node)) apply(`${path.replace(/\/+$/, "")}/${n}`, node.children.get(n)!);
+      }
+    };
+    for (const path of files) {
+      const found = this.fs.lookup(resolvePath(this.cwd, path));
+      if (found.error) {
+        ctx.err(`chown: cannot access '${path}': ${FS_MESSAGE[found.error]}`);
+        this.fsHint(ctx, found.error, path);
+        code = 1;
+        continue;
+      }
+      apply(path, found.node);
+    }
+    return code;
+  }
+
+  private id(ctx: Ctx): number {
+    const { flags, operands } = this.options(ctx, "id", "ugGn");
+    const who = operands[0] ?? USER;
+    if (who !== USER && who !== "root") {
+      ctx.err(`id: ‘${who}’: no such user`);
+      return 1;
+    }
+    const groups: [number, string][] = who === "root" ? [[0, "root"]] : GROUPS;
+    const uid = who === "root" ? 0 : 1000;
+    const names = flags.has("n");
+    if (flags.has("u")) ctx.out(`${names ? who : uid}\n`);
+    else if (flags.has("g")) ctx.out(`${names ? groups[0][1] : groups[0][0]}\n`);
+    else if (flags.has("G")) ctx.out(groups.map(([n, g]) => (names ? g : n)).join(" ") + "\n");
+    else ctx.out(`uid=${uid}(${who}) gid=${groups[0][0]}(${groups[0][1]}) groups=${groups.map(([n, g]) => `${n}(${g})`).join(",")}\n`);
+    return 0;
+  }
+
+  // ---------- system info: uname, which, date, man ----------
+
+  private uname(ctx: Ctx): number {
+    const { flags } = this.options(ctx, "uname", "snrm");
+    const parts: string[] = [];
+    if (flags.has("s") || flags.size === 0) parts.push("Linux");
+    if (flags.has("n")) parts.push(HOST);
+    if (flags.has("r")) parts.push(KERNEL_RELEASE);
+    if (flags.has("m")) parts.push("x86_64");
+    ctx.out(parts.join(" ") + "\n");
+    return 0;
+  }
+
+  private which(ctx: Ctx): number {
+    const { operands } = this.options(ctx, "which", "a");
+    let code = operands.length ? 0 : 1;
+    for (const name of operands) {
+      if (isCommand(name) && !BUILTINS.has(name)) ctx.out(`/usr/bin/${name}\n`);
+      else code = 1;
+    }
+    return code;
+  }
+
+  private date(ctx: Ctx): number {
+    const { operands } = this.options(ctx, "date", "u");
+    const format = operands.find((a) => a.startsWith("+"));
+    const bad = operands.find((a) => !a.startsWith("+"));
+    if (bad !== undefined) {
+      ctx.err(`date: invalid date ‘${bad}’`);
+      return 1;
+    }
+    ctx.out(formatDate(this.fs.now(), format?.slice(1)) + "\n");
+    return 0;
+  }
+
+  private man(ctx: Ctx): number {
+    const names = ctx.args.filter((a) => !a.startsWith("-"));
+    if (!names.length) {
+      ctx.err("What manual page do you want?");
+      ctx.err("For example, try 'man man'.");
+      return 1;
+    }
+    let code = 0;
+    for (const name of names) {
+      const page = MAN_PAGES[name];
+      if (!page) {
+        ctx.err(`No manual entry for ${name}`);
+        code = 16;
+        continue;
+      }
+      ctx.out(`${`${name} (${page[0]})`.padEnd(20)} - ${page[1]}\n`);
+      ctx.hint("manPage", name);
+    }
+    return code;
+  }
+
+  // ---------- find ----------
+
+  private find(ctx: Ctx): number {
+    const args = ctx.args;
+    const isExpr = (a: string) => a.startsWith("-") || a === "!" || a === "(" || a === ")";
+    let i = 0;
+    const starts: string[] = [];
+    while (i < args.length && !isExpr(args[i])) starts.push(args[i++]);
+    if (!starts.length) starts.push(".");
+
+    type Test = { kind: string; arg: string; not: boolean };
+    const groups: Test[][] = [[]];
+    let maxdepth = Infinity;
+    let mindepth = 0;
+    let hasAction = false;
+    let deletes = false;
+    let not = false;
+    const withArg = new Set(["-name", "-iname", "-type", "-maxdepth", "-mindepth", "-size", "-mtime"]);
+    const unsupported = new Set([
+      "-exec", "-execdir", "-ok", "-ls", "-printf", "-fprint", "-newer", "-perm", "-user", "-group", "-path", "-ipath",
+      "-regex", "-iregex", "-links", "-depth", "-prune", "-quit", "-readable", "-writable", "-executable", "-print0",
+      "-amin", "-mmin", "-cmin", "-atime", "-ctime", "-newermt", "-samefile", "-follow", "-xdev", "-mount",
+    ]);
+    let previous = "";
+    while (i < args.length) {
+      const a = args[i++];
+      if (a === "!" || a === "-not") {
+        not = !not;
+        continue;
+      }
+      if (a === "-o" || a === "-or") {
+        groups.push([]);
+        continue;
+      }
+      if (a === "-a" || a === "-and") continue;
+      if (a === "(" || a === ")" || unsupported.has(a)) {
+        ctx.hint("unsupportedOption", `find ${a}`);
+        return 1;
+      }
+      if (!isExpr(a)) {
+        ctx.err(`find: paths must precede expression: \`${a}'`);
+        if (previous === "-name" || previous === "-iname") {
+          ctx.err(`find: possible unquoted pattern after predicate \`${previous}'?`);
+          ctx.hint("findQuote", previous);
+        }
+        return 1;
+      }
+      previous = a;
+      if (withArg.has(a)) {
+        const v = args[i++];
+        if (v === undefined) {
+          ctx.err(`find: missing argument to \`${a}'`);
+          return 1;
+        }
+        if (a === "-maxdepth" || a === "-mindepth") {
+          if (!/^\d+$/.test(v)) {
+            ctx.err(`find: Expected a positive decimal integer argument to ${a}, but got ‘${v}’`);
+            return 1;
+          }
+          if (a === "-maxdepth") maxdepth = Number(v);
+          else mindepth = Number(v);
+          continue;
+        }
+        if (a === "-type" && !/^[fdlbcps]$/.test(v)) {
+          ctx.err(`find: Unknown argument to -type: ${v}`);
+          return 1;
+        }
+        if (a === "-size" && !/^[+-]?\d+[bcwkMG]?$/.test(v)) {
+          const unit = v.replace(/^[+-]?\d+/, "")[0] ?? v;
+          ctx.err(`find: invalid -size type \`${unit}'`);
+          return 1;
+        }
+        if (a === "-mtime" && !/^[+-]?\d+$/.test(v)) {
+          ctx.err(`find: invalid argument \`${v}' to \`-mtime'`);
+          return 1;
+        }
+        groups[groups.length - 1].push({ kind: a, arg: v, not });
+      } else if (a === "-empty" || a === "-print" || a === "-delete") {
+        if (a !== "-empty") hasAction = true;
+        if (a === "-delete") deletes = true;
+        groups[groups.length - 1].push({ kind: a, arg: "", not });
+      } else {
+        ctx.err(`find: unknown predicate \`${a}'`);
+        return 1;
+      }
+      not = false;
+    }
+
+    let code = 0;
+    const now = this.fs.now();
+    const test = (t: Test, node: FsNode, name: string): boolean => {
+      let r: boolean;
+      switch (t.kind) {
+        case "-name":
+          r = globToRegExp(t.arg).test(name);
+          break;
+        case "-iname":
+          r = new RegExp(globToRegExp(t.arg).source, "i").test(name);
+          break;
+        case "-type":
+          r = t.arg === "f" ? node.type === "file" : t.arg === "d" ? node.type === "dir" : false;
+          break;
+        case "-empty":
+          r = node.type === "file" ? node.content === "" : node.children.size === 0;
+          break;
+        case "-size": {
+          const m = t.arg.match(/^([+-]?)(\d+)([bcwkMG]?)$/)!;
+          const unit = { "": 512, b: 512, c: 1, w: 2, k: 1024, M: 1024 ** 2, G: 1024 ** 3 }[m[3]]!;
+          const bytes = node.type === "dir" ? 4096 : new TextEncoder().encode(node.content).length;
+          const n = Math.ceil(bytes / unit);
+          r = m[1] === "+" ? n > Number(m[2]) : m[1] === "-" ? n < Number(m[2]) : n === Number(m[2]);
+          break;
+        }
+        case "-mtime": {
+          const m = t.arg.match(/^([+-]?)(\d+)$/)!;
+          const days = Math.floor((now - this.fs.timeOf(node)) / 86_400_000);
+          r = m[1] === "+" ? days > Number(m[2]) : m[1] === "-" ? days < Number(m[2]) : days === Number(m[2]);
+          break;
+        }
+        default:
+          r = true;
+      }
+      return t.not ? !r : r;
+    };
+    const remove = (display: string, abs: string, node: FsNode) => {
+      if (display === "." || abs === "/") return;
+      const parent = this.fs.parent(abs);
+      if (parent.error || !can(parent.dir, "w") || !can(parent.dir, "x")) {
+        ctx.err(`find: cannot delete ‘${display}’: Permission denied`);
+        code = 1;
+      } else if (node.type === "dir" && node.children.size) {
+        ctx.err(`find: cannot delete ‘${display}’: Directory not empty`);
+        code = 1;
+      } else this.fs.remove(parent.dir, parent.name);
+    };
+    const evaluate = (display: string, abs: string, node: FsNode) => {
+      const name = display === "/" ? "/" : basename(display) || display;
+      for (const group of groups) {
+        let ok = true;
+        for (const t of group) {
+          if (t.kind === "-print") ctx.out(display + "\n");
+          else if (t.kind === "-delete") remove(display, abs, node);
+          else if (!test(t, node, name)) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) {
+          if (!hasAction) ctx.out(display + "\n");
+          return;
+        }
+      }
+    };
+    const visit = (display: string, abs: string, node: FsNode, depth: number) => {
+      if (!deletes && depth >= mindepth) evaluate(display, abs, node);
+      if (node.type === "dir" && depth < maxdepth) {
+        if (!can(node, "r") || !can(node, "x")) {
+          ctx.err(`find: ‘${display}’: Permission denied`);
+          ctx.hint("permission", display);
+          code = 1;
+        } else {
+          for (const n of VirtualFs.names(node)) {
+            const child = node.children.get(n);
+            if (!child) continue;
+            visit(display.endsWith("/") ? display + n : `${display}/${n}`, abs === "/" ? `/${n}` : `${abs}/${n}`, child, depth + 1);
+          }
+        }
+      }
+      // -delete implies a depth-first walk: a directory is handled after its contents.
+      if (deletes && depth >= mindepth) evaluate(display, abs, node);
+    };
+    for (const start of starts) {
+      const abs = resolvePath(this.cwd, start);
+      const found = this.fs.lookup(abs);
+      if (found.error) {
+        ctx.err(`find: ‘${start}’: ${FS_MESSAGE[found.error]}`);
+        this.fsHint(ctx, found.error, start);
+        code = 1;
+        continue;
+      }
+      visit(start, abs, found.node, 0);
+    }
+    return code;
+  }
+
+  // ---------- scripts: ./script.sh and bash script.sh ----------
+
+  private runScript(path: string, ctx: Ctx, viaBash: boolean): number {
+    const found = this.fs.lookup(resolvePath(this.cwd, path));
+    const fail = (msg: string, code: number): number => {
+      ctx.err(`bash: ${path}: ${msg}`);
+      return code;
+    };
+    if (found.error) {
+      fail(FS_MESSAGE[found.error], found.error === "EACCES" ? 126 : 127);
+      this.fsHint(ctx, found.error, path);
+      return found.error === "EACCES" ? 126 : 127;
+    }
+    if (found.node.type === "dir") {
+      if (viaBash) ctx.err(`${path}: ${path}: Is a directory`);
+      else fail("Is a directory", 126);
+      ctx.hint("isDirRead", path);
+      return 126;
+    }
+    if (!can(found.node, "r") || (!viaBash && !can(found.node, "x"))) {
+      fail("Permission denied", 126);
+      if (!viaBash && can(found.node, "r")) ctx.hint("notExecutable", path);
+      else ctx.hint("permission", path);
+      return 126;
+    }
+    if (this.scriptDepth >= 8) return 1;
+    this.scriptDepth++;
+    let code = 0;
+    const toCtx = (kind: "out" | "err", text: string) => {
+      if (kind === "out") ctx.out(text.endsWith("\n") ? text : text + "\n");
+      else for (const l of splitLines(text)) ctx.err(l);
+    };
+    try {
+      for (const raw of splitLines(found.node.content)) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#")) continue;
+        const exit = line.match(/^exit(?:\s+(\d+))?$/);
+        if (exit) return exit[1] ? Number(exit[1]) : code;
+        const parsed = parse(line, this.env());
+        if (!parsed.ok) {
+          code = 2;
+          continue;
+        }
+        for (const item of parsed.list) {
+          if (item.connector === "&&" && code !== 0) continue;
+          if (item.connector === "||" && code === 0) continue;
+          let stdin: string | null = null;
+          item.pipeline.forEach((cmd, idx) => {
+            const result = this.runSimple(cmd, stdin, idx === item.pipeline.length - 1, toCtx, ctx.hint);
+            stdin = result.stdout ?? "";
+            code = result.code;
+          });
+          this.lastCode = code;
+        }
+      }
+      return code;
+    } finally {
+      this.scriptDepth--;
+    }
   }
 
   // ---------- Tab completion ----------
@@ -1198,13 +1941,7 @@ export function quoteName(name: string, enabled: boolean): string {
 }
 
 export function modeString(node: FsNode): string {
-  const bits = "rwxrwxrwx"
-    .split("")
-    .map((c, i) => (node.mode & (1 << (8 - i)) ? c : "-"))
-    .join("");
-  // The sticky bit on world-writable directories like /tmp shows as "t".
-  const sticky = node.type === "dir" && node.mode === 0o777 ? bits.slice(0, 8) + "t" : bits;
-  return (node.type === "dir" ? "d" : "-") + sticky;
+  return (node.type === "dir" ? "d" : "-") + permString(node.mode);
 }
 
 function sizeOf(node: FsNode): number {

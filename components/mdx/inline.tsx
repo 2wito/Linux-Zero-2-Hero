@@ -15,7 +15,7 @@ export function Kbd({ keys, children }: { keys?: string; children?: React.ReactN
     </kbd>
   );
   return (
-    <span dir="ltr" className="inline-flex items-baseline gap-1 whitespace-nowrap [unicode-bidi:isolate]">
+    <span dir="ltr" className="inline-flex max-w-full flex-wrap items-baseline gap-1 [unicode-bidi:isolate]">
       {parts
         ? parts.map((p, i) => (
             <span key={i} className="inline-flex items-baseline gap-1">

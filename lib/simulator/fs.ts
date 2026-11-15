@@ -5,8 +5,9 @@ export const HOST = "ubuntu";
 export const HOME = `/home/${USER}`;
 
 export type Owner = typeof USER | "root";
-export type FileNode = { type: "file"; content: string; mode: number; owner: Owner; mtime: number };
-export type DirNode = { type: "dir"; children: Map<string, FsNode>; mode: number; owner: Owner; mtime: number };
+/** `group` is set only after `chown :group`; otherwise the group has the owner's name (Ubuntu's user private groups). */
+export type FileNode = { type: "file"; content: string; mode: number; owner: Owner; group?: string; mtime: number };
+export type DirNode = { type: "dir"; children: Map<string, FsNode>; mode: number; owner: Owner; group?: string; mtime: number };
 export type FsNode = FileNode | DirNode;
 
 /** Seed format: a string is a file with that content, an object is a directory. */
@@ -97,7 +98,7 @@ export class VirtualFs {
     for (const name of SYSTEM_DIRS) this.root.children.set(name, dir("root", t));
     const sys = (path: string) => this.get(path) as DirNode;
     sys("/root").mode = 0o700;
-    sys("/tmp").mode = 0o777;
+    sys("/tmp").mode = 0o1777;
     fill(sys("/etc"), { hostname: `${HOST}\n`, "os-release": 'PRETTY_NAME="Ubuntu 24.04 LTS"\nNAME="Ubuntu"\nVERSION_ID="24.04"\n' }, "root", t);
     sys("/dev").children.set("null", { ...file("root", t, ""), mode: 0o666 });
     const homeDir = dir("root", t);

@@ -142,7 +142,7 @@ function Audience({ t, locale, Forward }: Section) {
             const copy = a.levels[level];
             return (
               <li key={level} className="flex flex-col rounded-2xl border border-line bg-surface p-6 sm:p-7">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="flex items-center gap-3 text-xl font-bold">
                     <span aria-hidden className="flex items-end gap-0.5">
                       {[0, 1, 2].map((bar) => (
@@ -232,7 +232,7 @@ function ChapterGrid({ items, locale, t }: { items: Chapter[]; locale: Locale; t
                   <span>{t.chapter.minutes(chapter.minutes)}</span>
                 </span>
                 <span className="mt-0.5 flex items-start gap-2 font-bold leading-snug group-hover:text-accent">
-                  <span className="flex-1">{text.title}</span>
+                  <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{text.title}</span>
                   <DoneMark slug={chapter.slug} className="mt-0.5 size-[18px]" />
                 </span>
                 <span className="mt-1.5 block text-sm leading-6 text-muted">{text.summary}</span>

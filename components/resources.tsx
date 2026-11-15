@@ -21,7 +21,7 @@ export function Resources() {
             {resources
               .filter((r) => r.level === level)
               .map((r) => (
-                <li key={r.url}>
+                <li key={r.url} className="min-w-0">
                   <a
                     href={r.url}
                     target="_blank"
@@ -29,7 +29,7 @@ export function Resources() {
                     className="group flex h-full flex-col rounded-xl border border-line bg-surface p-4 hover:border-accent"
                   >
                     <span className="flex items-start gap-2">
-                      <span dir="auto" lang={r.lang} className="flex-1 font-bold leading-snug group-hover:text-accent">
+                      <span dir="auto" lang={r.lang} className="min-w-0 flex-1 font-bold leading-snug [overflow-wrap:anywhere] group-hover:text-accent">
                         {r.title}
                       </span>
                       <ExternalLink className="mt-1 size-4 shrink-0 text-muted group-hover:text-accent" aria-hidden />

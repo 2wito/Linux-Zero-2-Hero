@@ -79,7 +79,8 @@ export function SiteHeader() {
   return (
     <header className="@container sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur print:hidden">
       {/* Breakpoints are container queries in rem, so items collapse earlier when the text size is enlarged. */}
-      <div className="relative mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:gap-4 sm:px-6">
+      {/* flex-wrap: at a large text size the tools move to a second row instead of scrolling the page sideways. */}
+      <div className="relative mx-auto flex min-h-16 max-w-6xl flex-wrap items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6">
         <Link href={homeHref(locale)} aria-label={`${t.brand.name} ${t.brand.suffix}, ${t.nav.home}`} className="flex items-center gap-2 font-display text-lg">
           <SquareTerminal className="size-6 shrink-0 text-accent" aria-hidden />
           <span dir="ltr" className="hidden whitespace-nowrap @min-[26rem]:inline">
@@ -100,7 +101,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="ms-auto flex items-center gap-1.5 @min-[60rem]:ms-2 sm:gap-2">
+        <div className="ms-auto flex flex-wrap items-center justify-end gap-1.5 @min-[60rem]:ms-2 sm:gap-2">
           <SiteSearch />
           <MobileMenu links={links} pathname={pathname} />
           <Link

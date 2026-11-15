@@ -70,6 +70,124 @@ export const missions = {
       },
     ],
   },
+  // Chapter 9: permissions.
+  permissions: {
+    home: { ...defaultHome, "hello.sh": '#!/bin/bash\necho "Hello from my script"\n', "secret.txt": "my password is 1234\n" },
+    chips: ["id", "ls -l", "./hello.sh", "ls -l secret.txt"],
+    tasks: [
+      { he: "בדקו לאילו קבוצות אתם שייכים עם `id`", en: "Check which groups you belong to with `id`", done: (sh) => ran(sh, "id") },
+      { he: "נסו להריץ את `./hello.sh`, וקראו למה זה נכשל", en: "Try running `./hello.sh`, and read why it fails", done: (sh) => sh.log.some((e) => e.name === "./hello.sh") },
+      {
+        he: "תנו ל-`hello.sh` הרשאת הרצה, והריצו אותו בהצלחה",
+        en: "Give `hello.sh` execute permission, and run it successfully",
+        done: (sh) => ran(sh, "./hello.sh"),
+      },
+      {
+        he: "הפכו את `secret.txt` לפרטי: רק אתם קוראים וכותבים (`600`)",
+        en: "Make `secret.txt` private: only you can read and write it (`600`)",
+        done: (sh) => (sh.fs.get(`${HOME}/secret.txt`)?.mode ?? 0) === 0o600,
+      },
+    ],
+  },
+  // Chapter 12: pipes and redirection.
+  pipes: {
+    home: { ...defaultHome, "shopping.txt": "bread\neggs\ncheese\nmilk\n" },
+    chips: ["ls", "cat shopping.txt", "ls nosuch", "cat files.txt"],
+    tasks: [
+      {
+        he: "שמרו את רשימת הקבצים בקובץ `files.txt` עם `>`",
+        en: "Save the list of files to `files.txt` with `>`",
+        done: (sh) => {
+          const node = sh.fs.get(`${HOME}/files.txt`);
+          return node?.type === "file" && node.content.length > 0;
+        },
+      },
+      {
+        he: "הוסיפו שורה לסוף `files.txt` עם `>>`",
+        en: "Append a line to the end of `files.txt` with `>>`",
+        done: (sh) => sh.log.some((e) => e.code === 0 && />>\s*files\.txt/.test(e.line)),
+      },
+      {
+        he: "ספרו את השורות ב-`files.txt` בלי שהשם יודפס (רמז: `<`)",
+        en: "Count the lines in `files.txt` without its name being printed (hint: `<`)",
+        done: (sh) => sh.log.some((e) => e.name === "wc" && e.code === 0 && /<\s*files\.txt/.test(e.line)),
+      },
+      { he: "חברו שתי פקודות עם צינור `|`", en: "Connect two commands with a pipe `|`", done: (sh) => sh.log.some((e) => e.code === 0 && /\|/.test(e.line.replace(/\|\|/g, ""))) },
+      {
+        he: "הריצו `ls nosuch` כך שהשגיאה תיבלע ב-`/dev/null`",
+        en: "Run `ls nosuch` so the error is swallowed by `/dev/null`",
+        done: (sh) => sh.log.some((e) => e.name === "ls" && /2>\s*\/dev\/null/.test(e.line)),
+      },
+    ],
+  },
+  // Chapter 13: text tools.
+  "text-tools": {
+    home: {
+      ...defaultHome,
+      "server.log": [
+        "2026-11-10 08:01 INFO web1 started",
+        "2026-11-10 08:05 WARN web2 disk 85% full",
+        "2026-11-10 08:07 ERROR db1 connection refused",
+        "2026-11-10 08:09 INFO web1 GET /home 200",
+        "2026-11-10 08:10 ERROR web2 timeout",
+        "2026-11-10 08:12 INFO web2 GET /about 200",
+        "2026-11-10 08:15 error db1 connection refused",
+        "2026-11-10 08:20 INFO web1 GET /home 200",
+        "",
+      ].join("\n"),
+      "scores.csv": "name,city,score\ndana,haifa,92\nyossi,tel-aviv,78\nnoa,haifa,85\navi,jerusalem,64\nmaya,tel-aviv,97\n",
+    },
+    chips: ["cat server.log", "cat scores.csv", "wc -l server.log", "head -n 3 scores.csv"],
+    tasks: [
+      {
+        he: "מצאו את כל השגיאות בלוג, גם `ERROR` וגם `error`",
+        en: "Find every error in the log, both `ERROR` and `error`",
+        done: (sh) => ran(sh, "grep", (a) => hasFlag(a, "i") && a.some((x) => /^error$/i.test(x))),
+      },
+      {
+        he: "ספרו כמה שורות `INFO` יש בלוג",
+        en: "Count how many `INFO` lines the log has",
+        done: (sh) => ran(sh, "grep", (a) => hasFlag(a, "c") && a.includes("INFO")) || sh.log.some((e) => e.code === 0 && /grep.*INFO.*\|\s*wc -l/.test(e.line)),
+      },
+      {
+        he: "הציגו רק את עמודת השמות מ-`scores.csv`",
+        en: "Show only the names column of `scores.csv`",
+        done: (sh) => ran(sh, "cut", (a) => /-f\s*1\b/.test(a.join(" ")) && /-d\s*,/.test(a.join(" "))),
+      },
+      {
+        he: "ספרו כמה תלמידים יש מכל עיר (רמז: `cut`, `sort` ו-`uniq -c`)",
+        en: "Count how many students come from each city (hint: `cut`, `sort` and `uniq -c`)",
+        done: (sh) => sh.log.some((e) => e.name === "uniq" && e.code === 0 && /cut.*\|.*sort.*\|\s*uniq -c/.test(e.line)),
+      },
+    ],
+  },
+  // Chapter 14: finding files.
+  "find-files": {
+    home: {
+      ...defaultHome,
+      project: {
+        docs: { "README.md": "# My project\n", "todo.txt": "write tests\nfix the todo list\n" },
+        old: { "debug.log": "debug line\n", "app.log": "app started\n", "notes.txt": "old notes\n" },
+        src: { "main.py": 'print("hello")\n', "utils.py": "def helper(): pass\n" },
+      },
+    },
+    chips: ["find project", "ls project", "ls project/old", "pwd"],
+    tasks: [
+      {
+        he: "מצאו את כל קבצי ה-Python (`.py`) בפרויקט",
+        en: "Find every Python file (`.py`) in the project",
+        done: (sh) => ran(sh, "find", (a) => a.includes("-name") && a.some((x) => /\*\.py$/.test(x))),
+      },
+      { he: "מצאו את `readme` בלי הבדל בין אותיות גדולות לקטנות", en: "Find `readme` regardless of upper or lower case", done: (sh) => ran(sh, "find", (a) => a.includes("-iname")) },
+      { he: "הציגו רק את התיקיות", en: "Show only the directories", done: (sh) => ran(sh, "find", (a) => a.join(" ").includes("-type d")) },
+      {
+        he: "מחקו את כל קבצי ה-`.log` בפקודת `find` אחת",
+        en: "Delete all the `.log` files with one `find` command",
+        done: (sh) => ran(sh, "find", (a) => a.includes("-delete")) && !sh.fs.get(`${HOME}/project/old/debug.log`) && !sh.fs.get(`${HOME}/project/old/app.log`),
+      },
+      { he: "גלו איפה נמצאת הפקודה `ls`", en: "Find out where the `ls` command lives", done: (sh) => ran(sh, "which", (a) => a.includes("ls")) },
+    ],
+  },
   // Chapter 28 (practice challenges), beginner level.
   "challenge-treasure": {
     home: {

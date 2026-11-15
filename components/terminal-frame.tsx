@@ -24,7 +24,7 @@ export function TerminalFrame({
         <span aria-hidden className="size-3 shrink-0 rounded-full bg-[#ff5f57]" />
         <span aria-hidden className="size-3 shrink-0 rounded-full bg-[#febc2e]" />
         <span aria-hidden className="size-3 shrink-0 rounded-full bg-[#28c840]" />
-        <span className="ms-3 truncate font-mono text-xs text-term-dim">{title}</span>
+        <span className="ms-3 min-w-0 truncate font-mono text-xs text-term-dim">{title}</span>
         {/* The empty span keeps the bar height when there's no action. */}
         <span className="ms-auto flex h-7 items-center">{action}</span>
       </div>

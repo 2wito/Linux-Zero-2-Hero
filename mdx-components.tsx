@@ -16,6 +16,9 @@ import { Steps } from "@/components/mdx/steps";
 import { Resources } from "@/components/resources";
 import { TerminalSimulator } from "@/components/terminal-simulator";
 import { TerminalWindow } from "@/components/terminal-window";
+import { CommandAnatomy } from "@/components/tools/command-anatomy";
+import { CronExplainer } from "@/components/tools/cron-explainer";
+import { PermissionCalculator } from "@/components/tools/permission-calculator";
 
 type ElementProps = Record<string, unknown> & { children?: React.ReactNode };
 
@@ -78,6 +81,8 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     Checklist,
     Cmd,
     CodeBlock,
+    CommandAnatomy,
+    CronExplainer,
     Distro,
     DistroTabs,
     En,
@@ -87,6 +92,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     Glossary,
     Kbd,
     MiniQuiz,
+    PermissionCalculator,
     RecapCards,
     Resources,
     Solution,

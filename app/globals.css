@@ -101,6 +101,14 @@ body {
   .cursor-blink {
     animation: none;
   }
+  /* Any remaining transition or animation finishes instantly. */
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* Inline code inside Hebrew prose: keep it LTR and isolated so punctuation around it doesn't flip. */
